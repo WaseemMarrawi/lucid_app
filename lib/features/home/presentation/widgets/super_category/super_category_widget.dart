@@ -22,36 +22,43 @@ class SuperCategoryWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnimatedScaleWidget(
-      child: InkWell(
-        onTap: () {
-          if (productBloc.state.selectedSuperCategory?.id ==
-              superCategoryModel.id) {
-            // productBloc.add(SelectSuperCategoryEvent(params: null));
-          } else {
-            productBloc.add(
-              SelectSuperCategoryEvent(params: superCategoryModel),
-            );
-          }
-        },
-        child: AnimatedContainer(
-          duration: Duration(milliseconds: 300),
-          padding: EdgeInsets.all(8),
-          margin: EdgeInsetsDirectional.only(end: 4),
-          decoration: BoxDecoration(
-            color:
-                productBloc.state.selectedSuperCategory?.id !=
-                    superCategoryModel.id
-                ? Colors.transparent
-                : context.primarySwatch,
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Text(
-            superCategoryModel.name.getName(),
-            style:
-                productBloc.state.selectedSuperCategory?.id ==
-                    superCategoryModel.id
-                ? context.bodyMedium(color: context.cardColor, fontSize: 15)
-                : context.bodyLarge(fontSize: 15),
+      child: Padding(
+        padding:  EdgeInsetsDirectional.only(end:6),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+
+          onTap: () {
+            if (productBloc.state.selectedSuperCategory?.id ==
+                superCategoryModel.id) {
+              // productBloc.add(SelectSuperCategoryEvent(params: null));
+            } else {
+              productBloc.add(
+                SelectSuperCategoryEvent(params: superCategoryModel),
+              );
+            }
+          },
+          child: AnimatedContainer(
+            duration: Duration(milliseconds: 300),
+            padding: EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color:
+                  productBloc.state.selectedSuperCategory?.id !=
+                      superCategoryModel.id
+                  ? Colors.transparent
+                  : context.primarySwatch,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: context.primarySwatch
+              )
+            ),
+            child: Text(
+              superCategoryModel.name.getName(),
+              style:
+                  productBloc.state.selectedSuperCategory?.id ==
+                      superCategoryModel.id
+                  ? context.bodyMedium(color: context.cardColor, fontSize: 15)
+                  : context.bodyLarge(fontSize: 15),
+            ),
           ),
         ),
       ),
@@ -91,11 +98,11 @@ class CategoryWidget extends StatelessWidget {
           },
           child: AnimatedContainer(
             duration: Duration(milliseconds: 300),
-            padding: EdgeInsets.all(12),
+            padding: EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: context.cardColor,
+              // color: context.cardColor,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: context.dividerColor),
+              // border: Border.all(color: context.dividerColor),
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,

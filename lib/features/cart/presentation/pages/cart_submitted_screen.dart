@@ -154,7 +154,7 @@ class _CartSubmittedScreenState extends State<CartSubmittedScreen> {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: context.dividerColor),
-                          color: context.cardColor,
+                          // color: context.cardColor,
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -306,9 +306,7 @@ class _CartSubmittedScreenState extends State<CartSubmittedScreen> {
                                                   ),
                                                 ),
                                               ),
-                                              Space.vM1,
-                                              const Divider(height: 1),
-                                              Space.vM1,
+
                                             ],
                                           ),
                                         )
@@ -318,6 +316,9 @@ class _CartSubmittedScreenState extends State<CartSubmittedScreen> {
                                 );
                               },
                             ),
+                            Space.vM1,
+                            const Divider(height: 1),
+                            Space.vM1,
                             Row(
                               children: [
                                 Text(

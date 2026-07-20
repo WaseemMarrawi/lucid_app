@@ -29,7 +29,7 @@ class WelcomeChangeLangWidget extends StatelessWidget {
                     "العربية",
                     style: context.bodyLarge(
                       fontSize: 20,
-                      color: Colors.white,
+                      color: context.scaffoldBackgroundColor,
                     ),
                   ),
                 ),
@@ -50,7 +50,7 @@ class WelcomeChangeLangWidget extends StatelessWidget {
                     "English",
                     style: context.bodyLarge(
                       fontSize: 20,
-                      color: Colors.white,
+                      color:  context.scaffoldBackgroundColor,
                     ),
                   ),
                 ),
@@ -79,7 +79,7 @@ class WelcomeChangeLangWidget extends StatelessWidget {
                 "Kurdî",
                 style: context.bodyLarge(
                   fontSize: 20,
-                  color: Colors.white,
+                  color:  context.scaffoldBackgroundColor,
                 ),
               ),
             ),

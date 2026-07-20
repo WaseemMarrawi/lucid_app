@@ -36,11 +36,11 @@ class CartSliverAppBarWidget extends StatelessWidget {
           AppVariables.user?.restaurant?.media?.logo!= null?
           CacheNetworkImage(imageUrl:
           AppVariables.user!.restaurant!.media!.logo!,
-            width: 25,
-            height: 25,
+            width: 40,
+            height: 40,
           )
               :
-          Assets.images.png.logo.image(width: 25, color: context.textColor),
+          Assets.images.png.logo.image(width: 40, color: context.textColor),
           Space.hS3,
 
           Expanded(

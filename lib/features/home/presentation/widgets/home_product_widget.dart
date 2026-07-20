@@ -95,7 +95,7 @@ class HomeProductWidget extends StatelessWidget {
                   : EdgeInsets.only(left: 8, right: 8, bottom: 8),
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: context.cardColor,
+                color: context.scaffoldBackgroundColor,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: context.dividerColor),
                 boxShadow: [

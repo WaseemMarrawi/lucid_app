@@ -22,9 +22,9 @@ class SuperCategorySuccessWidget extends StatelessWidget {
           height: 60,
           padding: EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: context.cardColor,
+            // color: context.cardColor,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: context.dividerColor),
+            // border: Border.all(color: context.dividerColor),
           ),
 
           child: Row(

@@ -34,7 +34,7 @@ class ProductDetailsAddButtonWidget extends StatelessWidget {
               id: productModel.id,
               count: 1,
               name: productModel.name,
-              media: MediaModel(image: productModel.media?.image),
+              media: productModel.media,
               externalPrice: productModel.externalPrice,
               internalPrice: productModel.internalPrice,
               selectedAddons: List<AddonModel>.from(

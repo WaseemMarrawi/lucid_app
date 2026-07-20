@@ -109,7 +109,7 @@ class ThemeCollection {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-          backgroundColor: Colors.white,
+          backgroundColor: palette.scaffoldBackground,
           foregroundColor: palette.primary,
           side: BorderSide(color: palette.primary),
           shape: RoundedRectangleBorder(

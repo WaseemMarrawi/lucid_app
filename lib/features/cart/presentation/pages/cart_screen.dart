@@ -123,7 +123,7 @@ class _CartScreenState extends State<CartScreen> {
                 ),
               ),
               Container(
-                color: context.cardColor,
+                // color: context.cardColor,
                 child: Column(
                   children: [
                     Divider(height: 1),
@@ -174,43 +174,6 @@ class _CartScreenState extends State<CartScreen> {
                 ),
               ),
 
-              // BlocBuilder<CartBloc, CartState>(
-              //   bloc: cartBloc,
-              //   builder: (context, state) {
-              //     return (state.getCartData.list.isNotEmpty &&
-              //             state.getCartData.isSuccess)
-              //         ? AnimatedScaleWidget(
-              //             child: Container(
-              //               width: context.width,
-              //               padding: EdgeInsets.symmetric(
-              //                 horizontal: 26,
-              //                 vertical: 12,
-              //               ),
-              //
-              //               child: ElevatedButton(
-              //                 onPressed: () {
-              //                   cartBloc.add(CheckOutCartEvent());
-              //                 },
-              //                 child: Row(
-              //                   mainAxisAlignment: MainAxisAlignment.center,
-              //                   children: [
-              //                     Text(
-              //                       "Confirm Order",
-              //                       style: context.headlineSmall(
-              //                         color: Colors.white,
-              //                         fontSize: 16,
-              //                       ),
-              //                     ),
-              //                     Space.hM1,
-              //                     SvgAsset(Assets.images.svg.checkIcon),
-              //                   ],
-              //                 ),
-              //               ),
-              //             ),
-              //           )
-              //         : SizedBox();
-              //   },
-              // ),
             ],
           );
         },

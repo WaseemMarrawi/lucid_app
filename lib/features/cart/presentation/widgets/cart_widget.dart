@@ -22,11 +22,12 @@ class CartWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+
     return Container(
       padding: EdgeInsets.all(12),
       margin: EdgeInsets.symmetric(horizontal: 20, vertical: 6),
       decoration: BoxDecoration(
-        color: context.cardColor,
+        // color: context.cardColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: context.dividerColor),
       ),
@@ -34,9 +35,9 @@ class CartWidget extends StatelessWidget {
         children: [
           Row(
             children: [
-              productModel.media?.image != null
+              (productModel.media?.gallery != null&&productModel.media!.gallery!.isNotEmpty)
                   ? CacheNetworkImage(
-                      imageUrl: productModel.media!.image!,
+                      imageUrl: productModel.media!.gallery![0],
                       height: 52,
                       width: 52,
                       borderRadius: BorderRadius.circular(12),

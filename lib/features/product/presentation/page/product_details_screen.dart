@@ -1,14 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:restaurants_menu/common/design/design.dart';
-import 'package:restaurants_menu/common/design/src/widgets/animation_widget/animated_sub_text_widget.dart';
-import 'package:restaurants_menu/common/design/src/widgets/animation_widget/animated_title_text_widget.dart';
 import 'package:restaurants_menu/common/extensions/extensions.dart';
-import 'package:restaurants_menu/common/extensions/src/description_extensions.dart';
-import 'package:restaurants_menu/common/helper/helper.dart';
 import '../../../../common/models/addon_model.dart';
-import '../widget/addons_list_widget.dart';
-import '../widget/ingredient_widget.dart';
-import '../widget/popular_calories_widget.dart';
 import '../widget/product_details_button_widget.dart';
 import '../widget/product_details_sliver_app_bar_widget.dart';
 import 'package:restaurants_menu/common/models/product_model.dart';

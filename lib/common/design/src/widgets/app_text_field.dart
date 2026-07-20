@@ -237,7 +237,7 @@ class MyAppTextField extends StatelessWidget {
             ),
             decoration: baseDecoration.copyWith(
               suffix: suffix,
-              fillColor:fillColor,
+              fillColor:fillColor??context.scaffoldBackgroundColor,
               filled: true,
               hintText: hintText,
               labelText: labelText,

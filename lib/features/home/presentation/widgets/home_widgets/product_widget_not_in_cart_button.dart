@@ -36,10 +36,8 @@ class ProductWidgetNotInCartButton extends StatelessWidget {
                 id: productModel.id,
                 count: 1,
                 name: productModel.name,
-                media: MediaModel(
-                  image: productModel
-                      .media?.image,
-                ),
+                media: productModel
+                    .media,
                 externalPrice:
                 productModel
                     .externalPrice,

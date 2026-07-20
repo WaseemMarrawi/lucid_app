@@ -18,6 +18,7 @@ class WelcomeRateUsWidget extends StatelessWidget {
           },
           style: OutlinedButton.styleFrom(
             backgroundColor: const Color(0xFF2A180C).withOpacity(0.80),
+
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(24),
             ),

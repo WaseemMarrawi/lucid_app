@@ -43,8 +43,8 @@ class HomeAppBarWidget extends StatelessWidget implements PreferredSizeWidget {
               AppVariables.user?.restaurant?.media?.logo!= null?
                   CacheNetworkImage(imageUrl:
                   AppVariables.user!.restaurant!.media!.logo!,
-                    width: 25,
-                    height: 25,
+                    height: 40,
+                    width: 40,
                   )
                   :
               Assets.images.png.logo.image(width: 25, color: context.textColor),
@@ -72,8 +72,8 @@ class HomeAppBarWidget extends StatelessWidget implements PreferredSizeWidget {
           actions: [
             AddToCartIcon(
               key: cartKey,
-              icon: IconButton(
-                icon: Container(
+              icon: InkWell(
+                child: Container(
                   padding: EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: state.cartList.isNotEmpty
@@ -88,6 +88,7 @@ class HomeAppBarWidget extends StatelessWidget implements PreferredSizeWidget {
                       SvgAsset(
                         Assets.images.svg.home.shopping,
                         color: context.textColor,
+
                       ),
                       if (state.cartList.isNotEmpty) ...[
                         Positioned(
@@ -112,7 +113,7 @@ class HomeAppBarWidget extends StatelessWidget implements PreferredSizeWidget {
                     ],
                   ),
                 ),
-                onPressed: () {
+                onTap: () {
                   context.pushNamed(
                     RouteName.cart,
                     arguments: CartScreenParams(cartBloc: cartBloc),

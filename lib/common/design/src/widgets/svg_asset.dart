@@ -21,6 +21,7 @@ class SvgAsset extends StatelessWidget {
     return SvgPicture.asset(
       assetName,
       color: color,
+
       width: width,
       height: height,
       fit: BoxFit.contain,

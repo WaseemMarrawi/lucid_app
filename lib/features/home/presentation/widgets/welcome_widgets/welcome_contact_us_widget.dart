@@ -1,5 +1,6 @@
 
 import 'package:flutter/material.dart';
+import 'package:restaurants_menu/common/design/design.dart';
 
 import '../../../../../common/design/src/theme/assets.gen.dart';
 import '../../../../../common/design/src/theme/const.dart';
@@ -16,6 +17,24 @@ class WelcomeContactUsWidget extends StatelessWidget {
     return                     Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
+        // InkWell(
+        //   onTap: (){
+        //     AppLauncher.launchLink(
+        //       AppVariables.user?.restaurant?.facebookUrl,
+        //     );
+        //   },
+        //   child: Container(
+        //     padding: EdgeInsets.all(8),
+        //     decoration: BoxDecoration(
+        //       shape: BoxShape.circle,
+        //       color:  const Color(0xFF2A180C).withOpacity(0.80),
+        //
+        //     ),
+        //     child: SvgAsset(Assets.images.svg.welcome.whatsapp
+        //
+        //     ),
+        //   ),
+        // ),
         InkWell(
           onTap: (){
             AppLauncher.launchLink(

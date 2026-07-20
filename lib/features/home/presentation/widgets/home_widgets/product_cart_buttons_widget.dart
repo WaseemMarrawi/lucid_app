@@ -75,7 +75,7 @@ class ProductCartButtonsWidget extends StatelessWidget {
                       decoration: BoxDecoration(
                         borderRadius:
                         BorderRadius.circular(8),
-                        color: context.cardColor,
+                        // color: context.cardColor,
                         border: Border.all(
                           color:
                           context.primarySwatch,

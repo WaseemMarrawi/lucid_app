@@ -2,13 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:restaurants_menu/common/design/design.dart';
 import 'package:restaurants_menu/common/design/src/widgets/animation_widget/animated_scale_widget.dart';
-import 'package:restaurants_menu/common/extensions/src/description_extensions.dart';
 import 'package:restaurants_menu/common/extensions/src/validation.dart';
 import 'package:restaurants_menu/features/review/domin/use_cases/review_service_use_case.dart';
 import 'package:restaurants_menu/features/review/presentation/widgets/app_bar_widget.dart';
-import '../../../../common/design/src/widgets/auto_scroll_text_widget.dart';
 import '../../../../common/extensions/src/context_extensions.dart';
-import '../../../../common/helper/src/app_varibles.dart';
 import '../../../../common/helper/src/locale_keys.dart';
 import '../../../../core/di/injection.dart';
 import '../bloc/review_bloc.dart';
@@ -101,7 +98,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                         width: context.isDesktop ? context.width * .7 : null,
                         padding: EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          // color: Colors.white,
                           border: Border.all(color: context.dividerColor),
                           borderRadius: BorderRadius.circular(16),
                         ),
@@ -272,7 +269,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                       ? context.width * .7
                       : context.width * .5,
 
-                  color: Colors.white,
+                  // color: Colors.white,
                   padding: EdgeInsets.only(
                     bottom: context.navigationBarHeight + 10,
                     top: 10,
@@ -362,7 +359,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                                 LocaleKeys.sendRate.tr(),
                                 style: context.headlineSmall(
                                   fontSize: 16,
-                                  color: Colors.white,
+                                  color: context.scaffoldBackgroundColor,
                                 ),
                               ),
                             ),

@@ -29,7 +29,7 @@ class CartTypeTapWidget extends StatelessWidget {
         height: 52,
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: context.cardColor,
+          // color: context.cardColor,
           borderRadius: BorderRadius.circular(50),
           border: Border.all(
             color: Colors.grey.shade300,

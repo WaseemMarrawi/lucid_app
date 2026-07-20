@@ -175,15 +175,15 @@ class WelcomeScreen extends StatelessWidget {
                               children: [
                                 AppVariables.user?.restaurant?.media?.logo ==
                                         null
-                                    ? Assets.images.png.logo.image(height: 70)
+                                    ? Assets.images.png.logo.image(height: 90)
                                     : CacheNetworkImage(
                                         imageUrl: AppVariables
                                             .user!
                                             .restaurant!
                                             .media!
-                                            .profileImage!,
-                                        height: 70,
-                                        width: 70,
+                                            .logo!,
+                                        height: 90,
+                                        width: 90,
                                       ),
 
                                 AnimatedTitleTextWidget(
@@ -201,7 +201,7 @@ class WelcomeScreen extends StatelessWidget {
                                     softWrap: true,
                                     textAlign: TextAlign.center,
                                     style: context.headlineSmall(
-                                      fontSize: 40,
+                                      fontSize: 34,
                                       color: context.primarySwatch,
                                     ),
                                   ),
@@ -224,7 +224,7 @@ class WelcomeScreen extends StatelessWidget {
                                     textAlign: TextAlign.center,
                                     style: context.headlineSmall(
                                       color: Colors.white,
-                                      fontSize: 26,
+                                      fontSize: 18,
                                     ),
                                   ),
                                 ),

@@ -164,7 +164,7 @@ class ProductDetailsCountWidget extends StatelessWidget {
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
-                  color: context.cardColor,
+                  // color: context.cardColor,
                   border: Border.all(color: context.primarySwatch),
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 6),
