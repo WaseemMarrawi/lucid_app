@@ -1,10 +1,12 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:restaurants_menu/common/design/design.dart';
 import 'package:restaurants_menu/common/design/src/widgets/animation_widget/animated_title_text_widget.dart';
 import 'package:restaurants_menu/common/extensions/src/description_extensions.dart';
 import 'package:restaurants_menu/common/helper/helper.dart';
 import 'package:restaurants_menu/core/di/injection.dart';
+import 'package:restaurants_menu/features/user/presentation/bloc/user_bloc.dart';
 import '../../../../common/design/src/widgets/animation_widget/animated_sub_text_widget.dart';
 import '../../../../common/extensions/src/context_extensions.dart';
 import '../widgets/profile_video_widget.dart';
@@ -13,8 +15,15 @@ import '../widgets/welcome_widgets/welcome_contact_us_widget.dart';
 import 'package:restaurants_menu/common/design/src/theme/theme/theme_notifier.dart';
 import '../widgets/welcome_widgets/welcome_rate_us_widget.dart';
 
-class WelcomeScreen extends StatelessWidget {
+class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
+
+  @override
+  State<WelcomeScreen> createState() => _WelcomeScreenState();
+}
+
+class _WelcomeScreenState extends State<WelcomeScreen> {
+  final UserBloc userBloc = getIt<UserBloc>()..add(UserGetMeEvent());
 
   @override
   Widget build(BuildContext context) {
@@ -142,111 +151,126 @@ class WelcomeScreen extends StatelessWidget {
             ),
 
             /// المحتوى
-            SafeArea(
-              child: Column(
-                children: [
-                  Expanded(
-                    child: Center(
-                      child: SingleChildScrollView(
-                        child: Container(
-                          width: context.isDesktop
-                              ? context.width * .4
-                              : context.isTablet
-                              ? context.width * .7
-                              : context.width,
-                          margin: const EdgeInsets.symmetric(horizontal: 20),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color.fromRGBO(0, 0, 0, 0.08),
-                                offset: Offset(0, 4),
-                                blurRadius: 12,
+            BlocBuilder<UserBloc, UserState>(
+              bloc: userBloc,
+              buildWhen: (pre,cur)=>pre.getMeData.status!=cur.getMeData.status,
+              builder: (context, state) {
+                return SafeArea(
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: Center(
+                          child: SingleChildScrollView(
+                            child: Container(
+                              width: context.isDesktop
+                                  ? context.width * .4
+                                  : context.isTablet
+                                  ? context.width * .7
+                                  : context.width,
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 20,
                               ),
-                            ],
-                          ),
-                          child: Padding(
-                            padding: EdgeInsets.only(
-                              bottom: context.navigationBarHeight + 8,
-                              top: context.statusBarHeight,
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                AppVariables.user?.restaurant?.media?.logo ==
-                                        null
-                                    ? Assets.images.png.logo.image(height: 90)
-                                    : CacheNetworkImage(
-                                        imageUrl: AppVariables
-                                            .user!
-                                            .restaurant!
-                                            .media!
-                                            .logo!,
-                                        height: 90,
-                                        width: 90,
+                              // decoration: BoxDecoration(
+                              //   borderRadius: BorderRadius.circular(16),
+                              //   boxShadow: const [
+                              //     BoxShadow(
+                              //       color: Color.fromRGBO(0, 0, 0, 0.08),
+                              //       offset: Offset(0, 4),
+                              //       blurRadius: 12,
+                              //     ),
+                              //   ],
+                              // ),
+                              child: Padding(
+                                padding: EdgeInsets.only(
+                                  bottom: context.navigationBarHeight + 8,
+                                  top: context.statusBarHeight,
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    AppVariables
+                                                .user
+                                                ?.restaurant
+                                                ?.media
+                                                ?.logo ==
+                                            null
+                                        ? Assets.images.png.logo.image(
+                                            height: 90,
+                                          )
+                                        : CacheNetworkImage(
+                                            imageUrl: AppVariables
+                                                .user!
+                                                .restaurant!
+                                                .media!
+                                                .logo!,
+                                            height: 90,
+                                            width: 90,
+                                          ),
+
+                                    AnimatedTitleTextWidget(
+                                      child: Text(
+                                        AppVariables
+                                                .user
+                                                ?.restaurant
+                                                ?.nameTranslations
+                                                .getName(
+                                                  emptyText: LocaleKeys
+                                                      .welcomeWelcomeTitle
+                                                      .tr(),
+                                                ) ??
+                                            LocaleKeys.welcomeWelcomeTitle.tr(),
+                                        softWrap: true,
+                                        textAlign: TextAlign.center,
+                                        style: context.headlineSmall(
+                                          fontSize: 34,
+                                          color: context.primarySwatch,
+                                        ),
                                       ),
-
-                                AnimatedTitleTextWidget(
-                                  child: Text(
-                                    AppVariables
-                                            .user
-                                            ?.restaurant
-                                            ?.nameTranslations
-                                            .getName(
-                                              emptyText: LocaleKeys
-                                                  .welcomeWelcomeTitle
-                                                  .tr(),
-                                            ) ??
-                                        LocaleKeys.welcomeWelcomeTitle.tr(),
-                                    softWrap: true,
-                                    textAlign: TextAlign.center,
-                                    style: context.headlineSmall(
-                                      fontSize: 34,
-                                      color: context.primarySwatch,
                                     ),
-                                  ),
-                                ),
 
-                                Space.vM1,
+                                    Space.vM1,
 
-                                AnimatedSubTextWidget(
-                                  child: Text(
-                                    AppVariables
-                                            .user
-                                            ?.restaurant
-                                            ?.descriptionTranslations
-                                            .getName(
-                                              emptyText: LocaleKeys
-                                                  .welcomeWelcomeSubTitle
-                                                  .tr(),
-                                            ) ??
-                                        LocaleKeys.welcomeWelcomeSubTitle.tr(),
-                                    textAlign: TextAlign.center,
-                                    style: context.headlineSmall(
-                                      color: Colors.white,
-                                      fontSize: 18,
+                                    AnimatedSubTextWidget(
+                                      child: Text(
+                                        AppVariables
+                                                .user
+                                                ?.restaurant
+                                                ?.descriptionTranslations
+                                                .getName(
+                                                  emptyText: LocaleKeys
+                                                      .welcomeWelcomeSubTitle
+                                                      .tr(),
+                                                ) ??
+                                            LocaleKeys.welcomeWelcomeSubTitle
+                                                .tr(),
+                                        textAlign: TextAlign.center,
+                                        style: context.headlineSmall(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                        ),
+                                      ),
                                     ),
-                                  ),
+
+                                    Space.vM1,
+
+                                    WelcomeChangeLangWidget(),
+
+                                    Space.vM1,
+
+                                    WelcomeRateUsWidget(),
+                                  ],
                                 ),
-
-                                Space.vM1,
-
-                                WelcomeChangeLangWidget(),
-
-                                Space.vM1,
-
-                                WelcomeRateUsWidget(),
-                              ],
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
+                      WelcomeContactUsWidget(),
+                      Space.vM1,
+                    ],
                   ),
-                  WelcomeContactUsWidget(),
-                  Space.vM1,
-                ],
-              ),
+                );
+              },
             ),
           ],
         ),

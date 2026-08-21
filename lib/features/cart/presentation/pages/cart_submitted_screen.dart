@@ -377,7 +377,7 @@ class _CartSubmittedScreenState extends State<CartSubmittedScreen> {
                                         isPadding: false,
                                         controller: tableNumberController,
                                         textInputAction: TextInputAction.next,
-                                        validator: (text) => text.isNameText,
+                                        validator: (text) => text.isNotEmpty,
                                         keyboardType: TextInputType.name,
                                         focus: tableFocus,
                                         onSubmitted: (_) {

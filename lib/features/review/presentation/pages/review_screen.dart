@@ -141,8 +141,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
                                           ),
                                         ],
                                       ),
-                                      Space.vS3,
                                       CustomRatingWidget(rate: serviceRate),
+                                      Space.vS2,
+
                                     ],
                                   ),
                                 ),
@@ -171,8 +172,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
                                           ),
                                         ],
                                       ),
-                                      Space.vS3,
                                       CustomRatingWidget(rate: cleanRate),
+                                      Space.vS2,
+
                                     ],
                                   ),
                                 ),
@@ -201,8 +203,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
                                           ),
                                         ],
                                       ),
-                                      Space.vS3,
                                       CustomRatingWidget(rate: foodRate),
+                                      Space.vS2,
+
                                     ],
                                   ),
                                 ),

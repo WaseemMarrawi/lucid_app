@@ -56,7 +56,7 @@ class ApiVariables {
   static Uri _user({required String path, QueryParams? queryParameters}) =>
       _mainUri(path: 'user/$path', queryParameters: queryParameters);
 
-  static Uri getMe() => _user(path: "profile");
+  static Uri getMe() => _mainUri(path: "auth/me");
 
   static Uri updateMe() => _user(path: "profile");
 
@@ -202,5 +202,9 @@ class ApiVariables {
   static Uri reviewService() =>
       _mainUri(path: 'restaurant/reviews');
 
+
+  //ai
+  static Uri sendMessage() =>
+      _mainUri(path: 'restaurant/ai/chat');
 
 }

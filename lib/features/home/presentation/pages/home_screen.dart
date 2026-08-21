@@ -2,6 +2,8 @@ import 'package:add_to_cart_animation/add_to_cart_animation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:restaurants_menu/common/design/design.dart';
+import 'package:restaurants_menu/common/helper/helper.dart';
 import 'package:restaurants_menu/core/di/injection.dart';
 import 'package:restaurants_menu/features/cart/presentation/bloc/cart_bloc.dart';
 import 'package:restaurants_menu/features/home/presentation/widgets/home_widgets/home_app_bar_widget.dart';
@@ -9,6 +11,7 @@ import 'package:restaurants_menu/features/product/presentation/bloc/product_bloc
 import 'package:restaurants_menu/router/app_router.dart';
 import '../../../../common/design/src/theme/theme/theme_collection.dart';
 import '../../../../common/extensions/src/context_extensions.dart';
+import '../../../chat/presentation/widgets/home_voice_chat_widget.dart';
 import '../widgets/home_widgets/home_product_grid_status_widget.dart';
 import '../widgets/super_category/super_category_status_widget.dart';
 
@@ -27,6 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Function(GlobalKey)? runAddToCartAnimation;
 
   final Map<int, GlobalKey> categoryKeys = {};
+
 
   Future<void> _scrollToCategory(int id) async {
     final key = categoryKeys[id];
@@ -73,6 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+
     return AddToCartAnimation(
       cartKey: cartKey,
       createAddToCartAnimation: (fn) {
@@ -103,13 +108,16 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (context, state) {
             return Container(
               padding: EdgeInsets.only(bottom: context.navigationBarHeight),
-              child: Column(
+              child:
+              Column(
                 children: [
-                  const Padding(padding: EdgeInsets.symmetric(vertical: 16)),
+                  const Padding(padding: EdgeInsets.symmetric(vertical: 12)),
 
                   SuperCategoryStatusWidget(productBloc: productBloc),
-
+                  Space.vM2,
                   CategoryStatusWidget(productBloc: productBloc),
+                  Space.vM2,
+
                   Expanded(
                     child: CustomScrollView(
                       slivers: [
@@ -120,7 +128,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           animationReady: animationReady,
                           categoryKeys: categoryKeys,
                         ),
-
                       ],
                     ),
                   ),
@@ -129,12 +136,18 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           },
         ),
-        floatingActionButton: FloatingActionButton(
+        floatingActionButton:
+        AppVariables.user?.restaurant?.aiAudioChatEnabled==true?
+        HomeVoiceChatWidget()
+            :
+        AppVariables.user?.restaurant?.aiChatEnabled==true? FloatingActionButton(
           onPressed: () {
             context.pushNamed(RouteName.message);
           },
-          child: Icon(Icons.chat_outlined, color: context.cardColor),
-        ),
+          child: Assets.images.png.robot.image(
+            height: 24,color: context.cardColor,
+          )
+        ):null,
       ),
     );
   }

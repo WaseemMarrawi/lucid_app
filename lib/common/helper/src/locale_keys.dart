@@ -190,9 +190,16 @@ class LocaleKeys {
   static const audioMessageShort = 'chat.audioMessageShort';
   static const audioRecording = 'chat.recording';
   static const chatNewMessage = 'chat.newMessage';
+  static const chatTalkNow = 'chat.talkNow';
+  static const chatThinking = 'chat.thinking';
 
   // common
   static const retry = 'retry';
   static const nullText = 'nullText';
   static const emptyCount = 'emptyCount';
+  static const cartDialog = 'cartDialog';
+  static const clearCartTitle = 'cartDialog.clearCartTitle';
+  static const clearCartDescription = 'cartDialog.clearCartDescription';
+  static const clearCartConfirm = 'cartDialog.clearCartConfirm';
+  static const clearCartCancel = 'cartDialog.clearCartCancel';
 }

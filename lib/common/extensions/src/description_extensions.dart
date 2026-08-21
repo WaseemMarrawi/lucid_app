@@ -9,7 +9,7 @@ extension DescriptionModelX on DescriptionModel? {
     final value = switch (code) {
       'ar' => this?.ar,
       'en' => this?.en,
-      'tr' => this?.ku,
+      'fa' => this?.ku,
       _ => this?.ar,
     };
 

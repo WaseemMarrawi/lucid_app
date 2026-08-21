@@ -30,11 +30,11 @@ class $AssetsTranslationsGen {
   /// File path: assets/translations/en.json
   String get en => 'assets/translations/en.json';
 
-  /// File path: assets/translations/tr.json
-  String get tr => 'assets/translations/tr.json';
+  /// File path: assets/translations/fa.json
+  String get fa => 'assets/translations/fa.json';
 
   /// List of all assets
-  List<String> get values => [ar, en, tr];
+  List<String> get values => [ar, en, fa];
 }
 
 class $AssetsImagesPngGen {
@@ -50,6 +50,9 @@ class $AssetsImagesPngGen {
   $AssetsImagesPngNativeSplashGen get nativeSplash =>
       const $AssetsImagesPngNativeSplashGen();
 
+  /// File path: assets/images/png/robot.png
+  AssetGenImage get robot => const AssetGenImage('assets/images/png/robot.png');
+
   /// File path: assets/images/png/splash_logo.png
   AssetGenImage get splashLogo =>
       const AssetGenImage('assets/images/png/splash_logo.png');
@@ -58,7 +61,7 @@ class $AssetsImagesPngGen {
   $AssetsImagesPngWelcomeGen get welcome => const $AssetsImagesPngWelcomeGen();
 
   /// List of all assets
-  List<AssetGenImage> get values => [logo, splashLogo];
+  List<AssetGenImage> get values => [logo, robot, splashLogo];
 }
 
 class $AssetsImagesSvgGen {
@@ -198,21 +201,23 @@ class $AssetsImagesPngWelcomeGen {
 class $AssetsImagesSvgContactUsGen {
   const $AssetsImagesSvgContactUsGen();
 
-  /// File path: assets/images/svg/contact_us/contact-us-svgrepo-com.svg
-  String get contactUsSvgrepoCom =>
-      'assets/images/svg/contact_us/contact-us-svgrepo-com.svg';
+  /// File path: assets/images/svg/contact_us/facebook.svg
+  String get facebook => 'assets/images/svg/contact_us/facebook.svg';
+
+  /// File path: assets/images/svg/contact_us/instgram.svg
+  String get instgram => 'assets/images/svg/contact_us/instgram.svg';
 
   /// File path: assets/images/svg/contact_us/phone.svg
   String get phone => 'assets/images/svg/contact_us/phone.svg';
 
-  /// File path: assets/images/svg/contact_us/weChat.svg
-  String get weChat => 'assets/images/svg/contact_us/weChat.svg';
+  /// File path: assets/images/svg/contact_us/wep.svg
+  String get wep => 'assets/images/svg/contact_us/wep.svg';
 
   /// File path: assets/images/svg/contact_us/whatsApp.svg
   String get whatsApp => 'assets/images/svg/contact_us/whatsApp.svg';
 
   /// List of all assets
-  List<String> get values => [contactUsSvgrepoCom, phone, weChat, whatsApp];
+  List<String> get values => [facebook, instgram, phone, wep, whatsApp];
 }
 
 class $AssetsImagesSvgErrorGen {

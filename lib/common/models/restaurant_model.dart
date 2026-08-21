@@ -34,6 +34,9 @@ class RestaurantModel {
   final Media? media;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final bool? aiChatEnabled;
+  final bool? aiOrderChatEnabled;
+  final bool? aiAudioChatEnabled;
 
   RestaurantModel({
     this.id,
@@ -66,6 +69,9 @@ class RestaurantModel {
     this.media,
     this.createdAt,
     this.updatedAt,
+    this.aiChatEnabled,
+    this.aiOrderChatEnabled,
+    this.aiAudioChatEnabled
   });
 
   RestaurantModel copyWith({
@@ -99,8 +105,14 @@ class RestaurantModel {
     Media? media,
     DateTime? createdAt,
     DateTime? updatedAt,
+     bool? aiChatEnabled,
+     bool? aiOrderChatEnabled,
+     bool? aiAudioChatEnabled,
   }) => RestaurantModel(
     id: id ?? this.id,
+    aiChatEnabled: aiChatEnabled ?? this.aiChatEnabled,
+    aiOrderChatEnabled: aiOrderChatEnabled ?? this.aiOrderChatEnabled,
+    aiAudioChatEnabled: aiAudioChatEnabled ?? this.aiAudioChatEnabled,
     userId: userId ?? this.userId,
     name: name ?? this.name,
     nameTranslations: nameTranslations ?? this.nameTranslations,
@@ -145,6 +157,11 @@ class RestaurantModel {
         ownerName: json["owner_name"],
         email: json["email"],
         phone: json["phone"],
+
+      aiChatEnabled: json["ai_chat_enabled"],
+      aiOrderChatEnabled: json["ai_order_chat_enabled"],
+      aiAudioChatEnabled: json["ai_audio_chat_enabled"],
+
         description: json["description"],
         descriptionTranslations: json["description_translations"] == null
             ? null
@@ -226,6 +243,10 @@ class RestaurantModel {
     "media": media?.toJson(),
     "created_at": createdAt?.toIso8601String(),
     "updated_at": updatedAt?.toIso8601String(),
+    "ai_chat_enabled": aiChatEnabled,
+   "ai_order_chat_enabled":aiOrderChatEnabled,
+   "ai_audio_chat_enabled":aiAudioChatEnabled,
+
   };
 }
 

@@ -37,38 +37,47 @@ class HomeAppBarWidget extends StatelessWidget implements PreferredSizeWidget {
               color: context.textColor,
             ),
           ),
-          title: Row(
-            mainAxisAlignment: MainAxisAlignment.start,
-            children: [
-              AppVariables.user?.restaurant?.media?.logo!= null?
-                  CacheNetworkImage(imageUrl:
-                  AppVariables.user!.restaurant!.media!.logo!,
-                    height: 40,
-                    width: 40,
-                  )
-                  :
-              Assets.images.png.logo.image(width: 25, color: context.textColor),
-              Space.hS3,
-
-              SizedBox(
-                width: context.width*.5,
-                child: SmartMarqueeText(
-
-                  text:
-                  AppVariables.user?.restaurant?.nameTranslations?.getName(
-                    emptyText:"Lucid"
-                  ) ??
-                     "Lucid",
-
-                  style: context.headlineSmall(
-                    fontSize: 22,
-                    color: context.textColor,
-                  ),
-                ),
-              ),
-
-            ],
-          ),
+          title:
+          AppVariables.user?.restaurant?.media?.logo!= null?
+          CacheNetworkImage(imageUrl:
+          AppVariables.user!.restaurant!.media!.logo!,
+            height:60,
+            width: 60,
+          )
+              :
+          Assets.images.png.logo.image(width: 50, color: context.textColor),
+          // Row(
+          //   mainAxisAlignment: MainAxisAlignment.start,
+          //   children: [
+          //     AppVariables.user?.restaurant?.media?.logo!= null?
+          //         CacheNetworkImage(imageUrl:
+          //         AppVariables.user!.restaurant!.media!.logo!,
+          //           height: 40,
+          //           width: 40,
+          //         )
+          //         :
+          //     Assets.images.png.logo.image(width: 25, color: context.textColor),
+          //     Space.hS3,
+          //
+          //     SizedBox(
+          //       width: context.width*.5,
+          //       child: SmartMarqueeText(
+          //
+          //         text:
+          //         AppVariables.user?.restaurant?.nameTranslations?.getName(
+          //           emptyText:"Lucid"
+          //         ) ??
+          //            "Lucid",
+          //
+          //         style: context.headlineSmall(
+          //           fontSize: 22,
+          //           color: context.textColor,
+          //         ),
+          //       ),
+          //     ),
+          //
+          //   ],
+          // ),
           actions: [
             AddToCartIcon(
               key: cartKey,
@@ -85,10 +94,20 @@ class HomeAppBarWidget extends StatelessWidget implements PreferredSizeWidget {
                     alignment: Alignment.topRight,
                     clipBehavior: Clip.none,
                     children: [
-                      SvgAsset(
-                        Assets.images.svg.home.shopping,
-                        color: context.textColor,
-
+                      TweenAnimationBuilder<double>(
+                        tween: Tween<double>(
+                          begin: 25,
+                          end: state.cartList.isNotEmpty ? 30 : 25,
+                        ),
+                        duration: const Duration(milliseconds: 250),
+                        curve: Curves.easeInOut,
+                        builder: (context, size, child) {
+                          return SvgAsset(
+                            Assets.images.svg.home.shopping,
+                            height: size,
+                            color: context.textColor,
+                          );
+                        },
                       ),
                       if (state.cartList.isNotEmpty) ...[
                         Positioned(
@@ -125,14 +144,14 @@ class HomeAppBarWidget extends StatelessWidget implements PreferredSizeWidget {
               ),
             ),
           ],
-          bottom: PreferredSize(
-            preferredSize: Size.fromHeight(1),
-            child: Divider(
-              height: 1,
-              thickness: 1,
-              color: context.dividerColor, // لون الخط
-            ),
-          ),
+          // bottom: PreferredSize(
+          //   preferredSize: Size.fromHeight(1),
+          //   child: Divider(
+          //     height: 1,
+          //     thickness: 1,
+          //     color: context.primarySwatch, // لون الخط
+          //   ),
+          // ),
         );
       },
     );

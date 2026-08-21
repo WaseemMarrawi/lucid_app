@@ -48,6 +48,7 @@ import '../../features/chat/data/repositories/chat_repositories_imp.dart'
 import '../../features/chat/domin/repositories/chat_repositories.dart' as _i72;
 import '../../features/chat/domin/use_cases/send_message_use_case.dart'
     as _i837;
+import '../../features/chat/domin/use_cases/send_voice_use_case.dart' as _i493;
 import '../../features/chat/presentation/bloc/chat_bloc.dart' as _i65;
 import '../../features/product/data/data_source/product_remote_data.dart'
     as _i197;
@@ -238,11 +239,11 @@ Future<_i174.GetIt> $initGetIt(
   gh.lazySingleton<_i837.SendMessageUseCase>(
     () => _i837.SendMessageUseCase(repositories: gh<_i72.ChatRepositories>()),
   );
+  gh.lazySingleton<_i493.SendVoiceUseCase>(
+    () => _i493.SendVoiceUseCase(repositories: gh<_i72.ChatRepositories>()),
+  );
   gh.factory<_i610.ReviewBloc>(
     () => _i610.ReviewBloc(gh<_i538.ReviewServiceUseCase>()),
-  );
-  gh.factory<_i65.ChatBloc>(
-    () => _i65.ChatBloc(gh<_i837.SendMessageUseCase>()),
   );
   gh.factory<_i797.AuthBloc>(
     () => _i797.AuthBloc(
@@ -253,6 +254,12 @@ Future<_i174.GetIt> $initGetIt(
       gh<_i209.ForgetPasswordResetUseCase>(),
       gh<_i237.ForgetPasswordVerifyUseCase>(),
       gh<_i446.LogOutUseCase>(),
+    ),
+  );
+  gh.factory<_i65.ChatBloc>(
+    () => _i65.ChatBloc(
+      gh<_i837.SendMessageUseCase>(),
+      gh<_i493.SendVoiceUseCase>(),
     ),
   );
   gh.factory<_i415.ProductBloc>(

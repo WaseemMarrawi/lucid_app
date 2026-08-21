@@ -94,73 +94,68 @@ class _MessagePageState extends State<MessageScreen> {
       body: BlocConsumer<ChatBloc, ChatState>(
         bloc: chatBloc,
         builder: (context, state) {
-          return Padding(
-            padding: EdgeInsets.only(
-              top: MediaQuery.of(context).padding.top + 10,
-            ),
-            child: Column(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: EdgeInsetsDirectional.only(top: 14),
-                    height: context.height * 0.84,
-                    child: state.messages.isEmpty
-                        ? SizedBox()
-                        : RefreshIndicator(
-                            onRefresh: () async {
-                              // chatBloc.add(
-                              //   ChatGetDetailsEvent(
-                              //     chatId: widget.arg.chat.conversationId!,
-                              //   ),
-                              // );
-                            },
-                            child: Padding(
-                              padding: EdgeInsets.only(
-                                bottom: MediaQuery.of(
-                                  context,
-                                ).viewInsets.bottom,
-                              ),
-                              child: CustomScrollView(
-                                slivers: [
-                                  SliverList(
-                                    delegate: SliverChildBuilderDelegate(
-                                      (context, index) => Padding(
-                                        padding: const EdgeInsets.all(8.0),
-                                        child: MessageWidget(
-                                          message: state.messages[index],
-                                          chatBloc: chatBloc,
-                                          index: index,
-                                        ),
+          return Column(
+            children: [
+              Expanded(
+                child: Container(
+                  // padding: EdgeInsetsDirectional.only(top: 14),
+                  height: context.height * 0.84,
+                  child: state.messages.isEmpty
+                      ? SizedBox()
+                      : RefreshIndicator(
+                          onRefresh: () async {
+                            // chatBloc.add(
+                            //   ChatGetDetailsEvent(
+                            //     chatId: widget.arg.chat.conversationId!,
+                            //   ),
+                            // );
+                          },
+                          child: Padding(
+                            padding: EdgeInsets.only(
+                              bottom: MediaQuery.of(
+                                context,
+                              ).viewInsets.bottom,
+                            ),
+                            child: CustomScrollView(
+                              slivers: [
+                                SliverList(
+                                  delegate: SliverChildBuilderDelegate(
+                                    (context, index) => Padding(
+                                      padding: const EdgeInsets.all(8.0),
+                                      child: MessageWidget(
+                                        message: state.messages[index],
+                                        chatBloc: chatBloc,
+                                        index: index,
                                       ),
-
-                                      childCount: state.messages.length,
                                     ),
-                                  ),
-                                ],
 
-                                controller: _scrollController,
-                                // physics: BouncingScrollPhysics(),
-                              ),
+                                    childCount: state.messages.length,
+                                  ),
+                                ),
+                              ],
+
+                              controller: _scrollController,
+                              // physics: BouncingScrollPhysics(),
                             ),
                           ),
+                        ),
+                ),
+              ),
+
+              Padding(
+                padding: EdgeInsets.only(
+                  bottom: context.navigationBarHeight + 10,
+
+                ),
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: ChatInputWidget(
+                    chatBloc: chatBloc,
+                    globalKey: _globalKey3,
                   ),
                 ),
-
-                Padding(
-                  padding: EdgeInsets.only(
-                    bottom: context.navigationBarHeight + 10,
-
-                  ),
-                  child: Align(
-                    alignment: Alignment.bottomCenter,
-                    child: ChatInputWidget(
-                      chatBloc: chatBloc,
-                      globalKey: _globalKey3,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           );
         },
         listener: (context, state) {

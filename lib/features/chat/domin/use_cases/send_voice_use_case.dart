@@ -1,33 +1,35 @@
 import 'package:injectable/injectable.dart';
 import 'package:restaurants_menu/common/helper/helper.dart';
-import 'package:restaurants_menu/features/chat/data/model/chat_response.dart';
 import 'package:restaurants_menu/features/chat/domin/repositories/chat_repositories.dart';
 import '../../../../core/use_case/use_case.dart';
+import '../../data/model/voice_response.dart';
 
 
 @lazySingleton
-class SendMessageUseCase implements UseCase<ChatResponse, SendMessageParams> {
+class SendVoiceUseCase implements UseCase<VoiceResponse, SendVoiceParams> {
   final ChatRepositories _repositories;
 
-  SendMessageUseCase({required ChatRepositories repositories})
+  SendVoiceUseCase({required ChatRepositories repositories})
       : _repositories = repositories;
 
   @override
-  DataResponse<ChatResponse> call(SendMessageParams params) async =>
-      await _repositories.sendMessage(params.getBody());
+  DataResponse<VoiceResponse> call(SendVoiceParams params) async =>
+      await _repositories.voiceMessage(params.getBody());
 }
 
-class SendMessageParams with Params {
+class SendVoiceParams with Params {
   final String message;
 
 
-  SendMessageParams({required this.message});
+  SendVoiceParams({required this.message});
 
   @override
   BodyMap getBody() {
     return {
-      "chat_mode": AppVariables.user?.restaurant?.aiOrderChatEnabled==true?"order" : "inquiry",
+      "chat_mode": "audio",
       "query": message,
+      // "table_number": "5",
+      "customer_dialect": "?????",
       "response_mode": "blocking",
       "conversation_id": ""
     }..removeWhere((key, value) => value == null || value == ''||value=='null');

@@ -85,8 +85,8 @@ class HomeProductGridStatusWidget extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
-                          const Expanded(
-                              child: Divider(height: 1)),
+                           Expanded(
+                              child: Divider(height: 1,color:context.primarySwatch ,)),
 
                           Padding(
                             padding: const EdgeInsets.symmetric(
@@ -97,8 +97,8 @@ class HomeProductGridStatusWidget extends StatelessWidget {
                             ),
                           ),
 
-                          const Expanded(
-                              child: Divider(height: 1)),
+                           Expanded(
+                              child: Divider(height: 1,color:context.primarySwatch)),
                         ],
                       ),
                     ),
@@ -155,6 +155,8 @@ class HomeProductGridStatusWidget extends StatelessWidget {
           failedWidget:  HomeFailedSliverWidget(
             title:  state.getAllProductData.errorMessage,
           ),
+
+
           //   emptyWidget: SliverToBoxAdapter(child: EmptyWidget()),
           //   failedWidget: SliverToBoxAdapter(
           //     child: AppErrorWidget(

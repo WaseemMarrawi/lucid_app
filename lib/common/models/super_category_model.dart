@@ -61,13 +61,13 @@ class Media {
 
   factory Media.fromJson(Map<String, dynamic> json) {
     return Media(
-      image: json['image'],
+      image: json['icon'],
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'image': image,
+      'icon': image,
     };
   }
 }

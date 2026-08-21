@@ -23,7 +23,7 @@ class SuperCategoryWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedScaleWidget(
       child: Padding(
-        padding:  EdgeInsetsDirectional.only(end:6),
+        padding:  EdgeInsetsDirectional.only(end:8),
         child: InkWell(
           borderRadius: BorderRadius.circular(24),
 
@@ -39,7 +39,7 @@ class SuperCategoryWidget extends StatelessWidget {
           },
           child: AnimatedContainer(
             duration: Duration(milliseconds: 300),
-            padding: EdgeInsets.all(8),
+            padding: EdgeInsets.symmetric(vertical: 8,horizontal: 12),
             decoration: BoxDecoration(
               color:
                   productBloc.state.selectedSuperCategory?.id !=
@@ -49,15 +49,16 @@ class SuperCategoryWidget extends StatelessWidget {
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
                 color: context.primarySwatch
-              )
+              ),
+
             ),
             child: Text(
               superCategoryModel.name.getName(),
               style:
                   productBloc.state.selectedSuperCategory?.id ==
                       superCategoryModel.id
-                  ? context.bodyMedium(color: context.cardColor, fontSize: 15)
-                  : context.bodyLarge(fontSize: 15),
+                  ? context.headlineMedium(color: context.cardColor,fontSize: 15)
+                  : context.headlineMedium(fontSize: 15),
             ),
           ),
         ),
@@ -130,13 +131,23 @@ class CategoryWidget extends StatelessWidget {
                     height: 24,
                   )
                       :
-                  CacheNetworkImage(imageUrl: categoryModel.media!.image!,
+                  CacheNetworkImageLocale2(imageUrl: categoryModel.media!.image!,
 
                     width: 24,
                     height: 24,
+                    color:
+                    productBloc.state.selectedCategory?.id ==
+                        categoryModel.id
+                        ? context.cardColor
+                        : context.primarySwatch,
 
 
-        )),
+
+
+
+        )
+
+                ),
                 Space.vS2,
                 Text(
                   categoryModel.name.getName(),

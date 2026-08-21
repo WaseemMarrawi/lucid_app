@@ -195,9 +195,16 @@
   "chat": {
     "retry": "إعادة المحاولة",
     "audioMessage": "رسالة صوتية",
-    "audioMessageShort": "رسالة صوتية قصيرة",
+    "audioMessageShort": "مقطع صوتي قصير",
     "recording": "جارٍ التسجيل...",
-    "newMessage": "رسالة جديدة..."
-
+    "newMessage": "رسالة جديدة...",
+    "talkNow": "تحدث الآن...",
+    "thinking": "جارٍ التفكير..."
+  },
+  "cartDialog": {
+    "clearCartTitle": "إفراغ السلة",
+    "clearCartDescription": "هل أنت متأكد من رغبتك في إفراغ السلة؟ سيتم حذف جميع العناصر المضافة إليها.",
+    "clearCartConfirm": "إفراغ السلة",
+    "clearCartCancel": "رجوع"
   }
 }

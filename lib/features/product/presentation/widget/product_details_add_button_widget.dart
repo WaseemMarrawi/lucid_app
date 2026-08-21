@@ -52,6 +52,7 @@ class ProductDetailsAddButtonWidget extends StatelessWidget {
             colors: [
               context.primarySwatch.derivedColor,
               context.primarySwatch,
+              context.primarySwatch,
             ],
             begin: Alignment.bottomCenter,
             end: Alignment.topCenter,

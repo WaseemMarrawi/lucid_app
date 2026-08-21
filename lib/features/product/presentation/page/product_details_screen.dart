@@ -65,6 +65,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           ),
 
           Expanded(
+
             child: Column(
               children: [
 

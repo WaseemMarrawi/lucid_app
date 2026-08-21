@@ -13,6 +13,7 @@ class CustomRatingWidget extends StatelessWidget {
       initialRating: rate.value,
       minRating: 0.0,
       maxRating: 5.0,
+
       filledColor: context.primarySwatch,
       emptyColor: context.textColor,
       onChanged: (double rating) {
@@ -25,9 +26,11 @@ class CustomRatingWidget extends StatelessWidget {
       customFilledIcon: Icons.star_rounded,
       customHalfFilledIcon: Icons.star_half_rounded,
       customEmptyIcon: Icons.star_outline_rounded,
-      starSize: 30,
+      starSize: 35,
       animationDuration: Duration(milliseconds: 300),
       animationCurve: Curves.easeInOut,
+
+
 
       readOnly: false,
 

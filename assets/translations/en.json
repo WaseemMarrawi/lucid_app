@@ -184,8 +184,15 @@
     "audioMessage": "Audio Message",
     "audioMessageShort": "Short audio",
     "recording": "Recording...",
-    "newMessage": "New message..."
+    "newMessage": "New message...",
+    "talkNow": "Talk now...",
+    "thinking": "Thinking..."
 
-
+  },
+  "cartDialog": {
+    "clearCartTitle": "Clear Cart",
+    "clearCartDescription": "Are you sure you want to clear your cart? All added items will be removed.",
+    "clearCartConfirm": "Clear Cart",
+    "clearCartCancel": "Go Back"
   }
 }

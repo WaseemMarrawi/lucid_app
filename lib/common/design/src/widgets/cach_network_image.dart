@@ -225,3 +225,206 @@ class _CacheNetworkImageState
     );
   }
 }
+
+
+
+class CacheNetworkImageLocale extends StatelessWidget {
+  const CacheNetworkImageLocale({
+    super.key,
+    required this.imageUrl,
+    this.width,
+    this.height,
+    this.boxFit = BoxFit.cover,
+    this.border,
+    this.borderRadius,
+    this.shape = BoxShape.rectangle,
+  });
+
+  final String imageUrl;
+  final double? width;
+  final double? height;
+  final BoxFit boxFit;
+  final Border? border;
+  final BorderRadiusGeometry? borderRadius;
+  final BoxShape shape;
+
+  @override
+  Widget build(BuildContext context) {
+    if (imageUrl.isEmpty) {
+      return Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          shape: shape,
+          border: border,
+          borderRadius: borderRadius,
+          color: Colors.grey[200],
+        ),
+        child: const Icon(Icons.image_not_supported),
+      );
+    }
+
+    return ExtendedImage.network(
+      imageUrl,
+      width: width,
+      height: height,
+      fit: boxFit,
+      cache: true,
+      // الـ Key يضمن أن المحرك يتعرف على الصورة في الذاكرة بلمح البصر دون إعادة التحميل عند السكرول
+      key: ValueKey(imageUrl),
+      loadStateChanged: (state) {
+        switch (state.extendedImageLoadState) {
+          case LoadState.loading:
+            return ShimmerWidget(
+              width: width,
+              height: height,
+              shape: shape,
+              border: border,
+              borderRadius: borderRadius,
+            );
+
+          case LoadState.completed:
+            return Container(
+              width: width,
+              height: height,
+              decoration: BoxDecoration(
+                shape: shape,
+                border: border,
+                borderRadius: borderRadius,
+                image: DecorationImage(
+                  image: state.imageProvider,
+                  fit: boxFit,
+                ),
+              ),
+            );
+
+          case LoadState.failed:
+          default:
+            return GestureDetector(
+              onTap: state.reLoadImage,
+              child: Container(
+                width: width,
+                height: height,
+                decoration: BoxDecoration(
+                  shape: shape,
+                  border: border,
+                  borderRadius: borderRadius,
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.broken_image_outlined,
+                    color: context.primarySwatch,
+                    size: width != null ? width! * 0.4 : 24,
+                  ),
+                ),
+              ),
+            );
+        }
+      },
+    );
+  }
+}
+
+class CacheNetworkImageLocale2 extends StatelessWidget {
+  const CacheNetworkImageLocale2({
+    super.key,
+    required this.imageUrl,
+    this.width,
+    this.height,
+    this.boxFit = BoxFit.cover,
+    this.border,
+   required this.color,
+    this.borderRadius,
+    this.shape = BoxShape.rectangle,
+  });
+
+  final String imageUrl;
+  final double? width;
+  final double? height;
+  final BoxFit boxFit;
+  final Border? border;
+  final BorderRadiusGeometry? borderRadius;
+  final BoxShape shape;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    if (imageUrl.isEmpty) {
+      return Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          shape: shape,
+          border: border,
+          borderRadius: borderRadius,
+          color: Colors.grey[200],
+        ),
+        child: const Icon(Icons.image_not_supported),
+      );
+    }
+
+    return ExtendedImage.network(
+      imageUrl,
+      width: width,
+      height: height,
+      fit: boxFit,
+      cache: true,
+      // الـ Key يضمن أن المحرك يتعرف على الصورة في الذاكرة بلمح البصر دون إعادة التحميل عند السكرول
+      key: ValueKey(imageUrl),
+      loadStateChanged: (state) {
+        switch (state.extendedImageLoadState) {
+          case LoadState.loading:
+            return ShimmerWidget(
+              width: width,
+              height: height,
+              shape: shape,
+              border: border,
+              borderRadius: borderRadius,
+            );
+
+          case LoadState.completed:
+            return Container(
+              width: width,
+              height: height,
+              decoration: BoxDecoration(
+                shape: shape,
+                border: border,
+                borderRadius: borderRadius,
+                image: DecorationImage(
+                  image: state.imageProvider,
+                  fit: boxFit,
+                  colorFilter:  ColorFilter.mode(
+                   color,
+                    BlendMode.srcIn,
+                  ),
+
+                ),
+              ),
+            );
+
+          case LoadState.failed:
+          default:
+            return GestureDetector(
+              onTap: state.reLoadImage,
+              child: Container(
+                width: width,
+                height: height,
+                decoration: BoxDecoration(
+                  shape: shape,
+                  border: border,
+                  borderRadius: borderRadius,
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.broken_image_outlined,
+                    color: context.primarySwatch,
+                    size: width != null ? width! * 0.4 : 24,
+                  ),
+                ),
+              ),
+            );
+        }
+      },
+    );
+  }
+}

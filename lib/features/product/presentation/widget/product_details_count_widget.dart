@@ -29,6 +29,26 @@ class ProductDetailsCountWidget extends StatelessWidget {
       child: IntrinsicHeight(
         child: Row(
           children: [
+            InkWell(
+              onTap: () {
+                cartBloc.add(DeleteFromCartEvent(id: productModel.id!));
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  // color: context.cardColor,
+                  border: Border.all(color: context.primarySwatch),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Center(
+                  child: SvgAsset(
+                    Assets.images.svg.trash,
+                    color: context.primarySwatch,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: BlocBuilder<CartBloc, CartState>(
                 bloc: cartBloc,
@@ -44,6 +64,7 @@ class ProductDetailsCountWidget extends StatelessWidget {
                       gradient: LinearGradient(
                         colors: [
                           context.primarySwatch.derivedColor,
+                          context.primarySwatch,
                           context.primarySwatch,
                         ],
                         begin: Alignment.bottomCenter,
@@ -156,26 +177,7 @@ class ProductDetailsCountWidget extends StatelessWidget {
                 },
               ),
             ),
-            const SizedBox(width: 12),
-            InkWell(
-              onTap: () {
-                cartBloc.add(DeleteFromCartEvent(id: productModel.id!));
-              },
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  // color: context.cardColor,
-                  border: Border.all(color: context.primarySwatch),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: Center(
-                  child: SvgAsset(
-                    Assets.images.svg.trash,
-                    color: context.primarySwatch,
-                  ),
-                ),
-              ),
-            ),
+
           ],
         ),
       ),

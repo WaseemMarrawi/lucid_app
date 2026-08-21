@@ -19,8 +19,7 @@ class SuperCategorySuccessWidget extends StatelessWidget {
         scrollDirection: Axis.horizontal,
 
         child: Container(
-          height: 60,
-          padding: EdgeInsets.all(8),
+          padding: EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
             // color: context.cardColor,
             borderRadius: BorderRadius.circular(24),
@@ -62,8 +61,7 @@ class CategorySuccessWidget extends StatelessWidget {
         scrollDirection: Axis.horizontal,
 
         child: Container(
-            height: 120,
-            padding: EdgeInsets.all(8),
+            padding: EdgeInsets.symmetric(horizontal: 8),
 
 
             child: Row(

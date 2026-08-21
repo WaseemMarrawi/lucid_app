@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'package:bloc/bloc.dart';
-import 'package:meta/meta.dart';
+import '../../../../common/design/src/theme/theme/theme_notifier.dart';
 import '../../../../common/helper/src/app_varibles.dart';
 import '../../../../common/helper/src/data_state_model.dart';
 import '../../../../common/helper/src/helper_func.dart';
-import '../../../../common/models/user_model.dart';
+import '../../../../core/di/injection.dart';
 import '../../../../core/use_case/use_case.dart';
 import '../../data/models/user_model.dart';
 import '../../domain/use_cases/user_delete_me_use_cases.dart';
@@ -50,8 +50,11 @@ class UserBloc extends Bloc<UserEvent, UserState> {
         );
       },
       (r) {
+        AppVariables.user = r.data?.user;
+        getIt<AppThemeNotifier>().refreshTheme();
+
+
         emit(state.copyWith(getMeData: state.getMeData.setSuccess(data: r)));
-        AppVariables.user = r.data!;
       },
     );
   }
@@ -106,7 +109,7 @@ class UserBloc extends Bloc<UserEvent, UserState> {
           ),
         );
 
-        AppVariables.user = r.data!;
+        AppVariables.user = r.data?.user;
 
       },
     );
@@ -147,7 +150,7 @@ class UserBloc extends Bloc<UserEvent, UserState> {
             ),
           ),
         );
-        AppVariables.user = r.data!;
+        AppVariables.user = r.data?.user;
 
       },
     );

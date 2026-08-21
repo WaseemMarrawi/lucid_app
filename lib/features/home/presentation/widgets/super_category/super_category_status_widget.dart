@@ -11,39 +11,39 @@ class SuperCategoryStatusWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 20),
-      child: BlocBuilder<ProductBloc, ProductState>(
-        bloc: productBloc,
-        builder: (context, state) {
-          return state.getAllProductData.builder(
-            onTapRetry: () {
-              productBloc.add(GetAllProductEvent());
-            },
+    return BlocBuilder<ProductBloc, ProductState>(
+      bloc: productBloc,
+      builder: (context, state) {
+        return state.getAllProductData.builder(
+          onTapRetry: () {
+            productBloc.add(GetAllProductEvent());
+          },
 
-            loadingWidget: ShimmerWidget(
+          loadingWidget: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: ShimmerWidget(
               height: 60,
               padding: EdgeInsets.all(8),
               borderRadius: BorderRadius.circular(24),
             ),
+          ),
 
-            onSuccess: (getAllProduct) {
-              final superCategories =
-                  getAllProduct?.data?.superCategories ?? [];
+          onSuccess: (getAllProduct) {
+            final superCategories =
+                getAllProduct?.data?.superCategories ?? [];
 
-              if (superCategories.isEmpty) {
-                return const SizedBox();
-              }
+            if (superCategories.isEmpty) {
+              return const SizedBox();
+            }
 
-              return SuperCategorySuccessWidget(
-                productBloc: productBloc,
-                superCategoryList: superCategories,
-              );
-            },
-            failedWidget: SizedBox(),
-          );
-        },
-      ),
+            return SuperCategorySuccessWidget(
+              productBloc: productBloc,
+              superCategoryList: superCategories,
+            );
+          },
+          failedWidget: SizedBox(),
+        );
+      },
     );
   }
 }
@@ -59,34 +59,34 @@ class CategoryStatusWidget extends StatelessWidget {
         bloc: productBloc,
         builder: (context,state){
 
-      return  Padding(
-        padding: EdgeInsets.symmetric(horizontal: 20),
-        child: state.getAllProductData.builder(
+      return  state.getAllProductData.builder(
 
 
-          loadingWidget: ShimmerWidget(
+        loadingWidget: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20),
+          child: ShimmerWidget(
             height: 60,
             padding: EdgeInsets.all(8),
             borderRadius: BorderRadius.circular(24),
           ),
-
-          onSuccess: (getAllProduct) {
-
-
-
-            if (state.selectedSuperCategory==null||state.selectedSuperCategory!.categories!.isEmpty) {
-              return const SizedBox();
-            }else{
-              return CategorySuccessWidget(
-                productBloc: productBloc,
-                superCategoryList: state.selectedSuperCategory!.categories!,
-              );
-            }
-
-
-          },
-          failedWidget: SizedBox(),
         ),
+
+        onSuccess: (getAllProduct) {
+
+
+
+          if (state.selectedSuperCategory==null||state.selectedSuperCategory!.categories!.isEmpty) {
+            return const SizedBox();
+          }else{
+            return CategorySuccessWidget(
+              productBloc: productBloc,
+              superCategoryList: state.selectedSuperCategory!.categories!,
+            );
+          }
+
+
+        },
+        failedWidget: SizedBox(),
       );
     });
   }

@@ -52,14 +52,101 @@ class _CartScreenState extends State<CartScreen> {
                         child: Column(
                           children: [
                             Space.vM1,
-                            AnimatedTitleTextWidget(
-                              child: Align(
-                                alignment: AlignmentDirectional.centerStart,
-                                child: Text(
-                                  LocaleKeys.homeCart.tr(),
-                                  style: context.headlineSmall(fontSize: 24),
+                            Row(
+                              children: [
+                                AnimatedTitleTextWidget(
+                                  child: Align(
+                                    alignment: AlignmentDirectional.centerStart,
+                                    child: Text(
+                                      LocaleKeys.homeCart.tr(),
+                                      style: context.headlineSmall(fontSize: 24),
+                                    ),
+                                  ),
                                 ),
-                              ),
+                                Spacer(),
+
+                               state.cartList.isNotEmpty?
+                                InkWell(
+                                  onTap: () {
+                                    showDialog(
+                                      context: context,
+                                      barrierDismissible: false,
+                                      builder: (context) {
+                                        return AlertDialog(
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(16),
+                                          ),
+                                          insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+                                          contentPadding: const EdgeInsets.all(24),
+                                          content: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                LocaleKeys.clearCartTitle.tr(),
+                                                style: context.headlineSmall(fontSize: 18),
+                                              ),
+                                              Padding(
+                                                padding: const EdgeInsets.only(top: 8, bottom: 16),
+                                                child: Text(
+                                                  LocaleKeys.clearCartDescription.tr(),
+                                                  style: context.bodyMedium(
+                                                    fontSize: 14,
+                                                    color: context.textColor,
+                                                  ),
+                                                ),
+                                              ),
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: ElevatedButton(
+                                                      style: ElevatedButton.styleFrom(
+                                                        backgroundColor: Colors.white,
+                                                        side: BorderSide(
+                                                          width: 1,
+                                                          color: context.primarySwatch,
+                                                        ),
+                                                      ),
+                                                      onPressed: () {
+                                                        Navigator.of(context).pop(false);
+                                                      },
+                                                      child: Text(
+                                                        LocaleKeys.clearCartCancel.tr(),
+                                                        style: context.bodyMedium(fontSize: 14),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Expanded(
+                                                    child: ElevatedButton(
+                                                      onPressed: () {
+                                                        Navigator.of(context).pop(true);
+                                                        cartBloc.add(ResetCartDataEvent());
+                                                      },
+                                                      child: Text(
+                                                        LocaleKeys.clearCartConfirm.tr(),
+                                                        style: context.bodyMedium(
+                                                          color: Colors.white,
+                                                          fontSize: 14,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  },
+                                  child: SvgAsset(
+                                    Assets.images.svg.trash,
+                                    color: context.primarySwatch,
+                                    height: 30,
+                                  ),
+                                ):SizedBox(),
+
+                              ],
                             ),
                             Space.vM1,
 

@@ -6,6 +6,7 @@ import 'package:restaurants_menu/features/chat/domin/use_cases/send_message_use_
 import '../../../../common/extensions/src/context_extensions.dart';
 import '../../../../common/helper/helper.dart';
 import '../../../chat/presentation/bloc/chat_bloc.dart';
+import '../../data/model/chat_response.dart';
 import 'message_bubble.dart';
 
 class MessageWidget extends StatelessWidget {
@@ -59,6 +60,7 @@ class MessageWidget extends StatelessWidget {
                     style: context.headlineMedium(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
+                      color:isMe? context.textColor :context.cardColor
                     ),
                     softWrap: true,
                   ),
@@ -238,52 +240,4 @@ class _VoiceMessageWidgetState extends State<VoiceMessageWidget> {
   }
 }
 
-class MessageModel {
-  final String id;
-  final String? content;
-  final bool isMe;
-  final PostMessageState status;
 
-  MessageModel({
-    required this.id,
-    this.content,
-    this.isMe = false,
-    this.status = PostMessageState.init,
-  });
-  MessageModel copyWith({
-     String? id,
-     String? content,
-     bool? isMe,
-     PostMessageState? status
-
-  }
-      ) {
-    return MessageModel(
-      id: id ?? this.id,
-      content: content ?? this.content,
-      isMe: isMe ?? this.isMe,
-      status: status ?? this.status,
-    );
-  }
-}
-
-enum PostMessageState { init, load, suc, fail, post }
-
-class FilesModel {
-  final String? url;
-  final String? name;
-  final String? type;
-
-  FilesModel({this.url, this.name, this.type});
-
-  FilesModel copyWith({String? url, String? name, String? type}) => FilesModel(
-    url: url ?? this.url,
-    name: name ?? this.name,
-    type: type ?? this.type,
-  );
-
-  factory FilesModel.fromJson(Map<String, dynamic> json) =>
-      FilesModel(url: json["url"], name: json["name"], type: json["type"]);
-
-  Map<String, dynamic> toJson() => {"url": url, "name": name, "type": type};
-}
