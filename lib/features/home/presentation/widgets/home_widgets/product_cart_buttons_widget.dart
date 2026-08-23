@@ -47,7 +47,7 @@ class ProductCartButtonsWidget extends StatelessWidget {
             horizontal: 8,
             vertical: 4,
           )
-              : const EdgeInsets.all(8),
+              : const EdgeInsets.all(12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(5000),
             gradient: LinearGradient(

@@ -1,19 +1,20 @@
 import 'dart:async';
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:restaurants_menu/common/helper/helper.dart';
+import 'package:restaurants_menu/common/extensions/extensions.dart';
 import 'package:restaurants_menu/features/chat/domin/use_cases/send_voice_use_case.dart';
 import 'package:restaurants_menu/features/chat/presentation/bloc/chat_bloc.dart';
+import 'package:restaurants_menu/features/chat/presentation/widgets/voice_chat_widgets/voice_ai_speaking_content.dart';
+import 'package:restaurants_menu/features/chat/presentation/widgets/voice_chat_widgets/voice_disable_content.dart';
+import 'package:restaurants_menu/features/chat/presentation/widgets/voice_chat_widgets/voice_failed_content.dart';
+import 'package:restaurants_menu/features/chat/presentation/widgets/voice_chat_widgets/voice_listening_content.dart';
+import 'package:restaurants_menu/features/chat/presentation/widgets/voice_chat_widgets/voice_loading_content.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
-import '../../../../common/design/src/theme/assets.gen.dart';
 import '../../../../common/extensions/src/color_extentions.dart';
-import '../../../../common/extensions/src/context_extensions.dart';
 import '../../../../core/di/injection.dart';
 
 class HomeVoiceChatWidget extends StatefulWidget {
@@ -29,64 +30,139 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
   // CONTROLLERS
   // ===========================================================================
 
-  final stt.SpeechToText _speech = stt.SpeechToText();
+  late final stt.SpeechToText _speech;
 
-  final AudioPlayer _audioPlayer = AudioPlayer();
+  late final AudioPlayer _audioPlayer;
 
   late final ChatBloc _chatBloc;
 
   late final AnimationController _recordingAnimationController;
 
-  StreamSubscription<PlayerState>? _audioSubscription;
+  // ===========================================================================
+  // SUBSCRIPTIONS
+  // ===========================================================================
+
+  late final StreamSubscription<PlayerState> _audioSubscription;
 
   // ===========================================================================
-  // LOCAL STATE
+  // REACTIVE UI STATE
+  // ===========================================================================
+
+  late final ValueNotifier<bool> _voiceChatActiveNotifier;
+
+  late final ValueNotifier<bool> _isSendingVoiceNotifier;
+
+  late final ValueNotifier<bool> _userHasSpokenNotifier;
+
+  late final ValueNotifier<double> _soundLevelNotifier;
+
+  late final ValueNotifier<String> _speechTextNotifier;
+
+  // ===========================================================================
+  // INTERNAL SPEECH STATE
   // ===========================================================================
 
   bool _speechInitialized = false;
 
   bool _isStartingSpeech = false;
 
-  bool _isSendingVoice = false;
+  bool _speechSessionActive = false;
+
+  bool _restartScheduled = false;
 
   bool _recordingRequested = false;
 
-  bool _speechSessionActive = false;
-
-  int _recordingSessionId = 0;
-
-  double _soundLevel = 0;
-
-  String _speechText = '';
-
-  String _lastRecognizedText = '';
-
   // ===========================================================================
-  // SPEECH SESSION START TIME
-  // ===========================================================================
-
-  DateTime? _speechSessionStartedAt;
-
-  // ===========================================================================
-  // IMPORTANT
-  //
-  // This is different from AudioPlayer.processingState.
-  //
-  // processingState can already be "completed" from a PREVIOUS audio.
-  //
-  // We only consider the current audio as completed if we have actually
-  // observed playing=true for that audio.
+  // INTERNAL AUDIO STATE
   // ===========================================================================
 
   bool _aiAudioActuallyPlaying = false;
 
   // ===========================================================================
-  // INIT
+  // SPEECH TEXT
+  // ===========================================================================
+
+  String _lastRecognizedText = '';
+
+  String _speechTextBeforeCurrentSession = '';
+
+  // ===========================================================================
+  // TIMERS
+  // ===========================================================================
+
+  Timer? _silenceTimer;
+
+  // ===========================================================================
+  // SPEECH INFO
+  // ===========================================================================
+
+  DateTime? _lastUserSpeechAt;
+
+  // ===========================================================================
+  // CONFIG
+  // ===========================================================================
+
+  static const Duration _submitSilenceDuration = Duration(seconds: 2);
+
+  static const Duration _speechPauseDuration = Duration(minutes: 30);
+
+  static const Duration _speechListenDuration = Duration(minutes: 30);
+
+  // ===========================================================================
+  // SESSION
+  // ===========================================================================
+
+  int _recordingSessionId = 0;
+
+  // ===========================================================================
+  // GETTERS
+  // ===========================================================================
+
+  bool get _voiceChatActive => _voiceChatActiveNotifier.value;
+
+  set _voiceChatActive(bool value) {
+    _voiceChatActiveNotifier.value = value;
+  }
+
+  bool get _isSendingVoice => _isSendingVoiceNotifier.value;
+
+  set _isSendingVoice(bool value) {
+    _isSendingVoiceNotifier.value = value;
+  }
+
+  bool get _userHasSpoken => _userHasSpokenNotifier.value;
+
+  set _userHasSpoken(bool value) {
+    _userHasSpokenNotifier.value = value;
+  }
+
+  double get _soundLevel => _soundLevelNotifier.value;
+
+  set _soundLevel(double value) {
+    _soundLevelNotifier.value = value;
+  }
+
+  String get _speechText => _speechTextNotifier.value;
+
+  set _speechText(String value) {
+    _speechTextNotifier.value = value;
+  }
+
+  // ===========================================================================
+  // INIT STATE
   // ===========================================================================
 
   @override
   void initState() {
     super.initState();
+
+    // -------------------------------------------------------------------------
+    // CONTROLLERS
+    // -------------------------------------------------------------------------
+
+    _speech = stt.SpeechToText();
+
+    _audioPlayer = AudioPlayer();
 
     _chatBloc = getIt<ChatBloc>();
 
@@ -97,40 +173,27 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
       upperBound: 1,
     );
 
-    _initializeSpeech();
+    // -------------------------------------------------------------------------
+    // VALUE NOTIFIERS
+    // -------------------------------------------------------------------------
+
+    _voiceChatActiveNotifier = ValueNotifier<bool>(false);
+
+    _isSendingVoiceNotifier = ValueNotifier<bool>(false);
+
+    _userHasSpokenNotifier = ValueNotifier<bool>(false);
+
+    _soundLevelNotifier = ValueNotifier<double>(0);
+
+    _speechTextNotifier = ValueNotifier<String>('');
+
+    // -------------------------------------------------------------------------
+    // INITIALIZATION
+    // -------------------------------------------------------------------------
 
     _initializeAudio();
-  }
 
-  // ===========================================================================
-  // DEBUG
-  // ===========================================================================
-
-  void _log(String message) {
-    debugPrint(
-      '[VOICE] ${DateTime.now().toIso8601String()} | '
-      'session=$_recordingSessionId | '
-      'requested=$_recordingRequested | '
-      'active=$_speechSessionActive | '
-      'starting=$_isStartingSpeech | '
-      'sending=$_isSendingVoice | '
-      'bloc=${_chatBloc.state.voiceChatState} | '
-      '$message',
-    );
-  }
-
-  void _logAudio(String message) {
-    debugPrint(
-      '[VOICE AUDIO] ${DateTime.now().toIso8601String()} | '
-      'session=$_recordingSessionId | '
-      'requested=$_recordingRequested | '
-      'active=$_speechSessionActive | '
-      'starting=$_isStartingSpeech | '
-      'sending=$_isSendingVoice | '
-      'bloc=${_chatBloc.state.voiceChatState} | '
-      'actuallyPlaying=$_aiAudioActuallyPlaying | '
-      '$message',
-    );
+    unawaited(_initializeSpeech());
   }
 
   // ===========================================================================
@@ -138,8 +201,6 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
   // ===========================================================================
 
   Future<void> _initializeSpeech() async {
-    _log('INITIALIZE SPEECH');
-
     try {
       final available = await _speech.initialize(
         onStatus: _onSpeechStatus,
@@ -151,86 +212,68 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
       }
 
       _speechInitialized = available;
-
-      _log(
-        'SPEECH INITIALIZED | '
-        'available=$available',
-      );
-    } catch (e) {
+    } catch (_) {
       _speechInitialized = false;
-
-      _log('SPEECH INITIALIZATION ERROR | error=$e');
     }
   }
 
   // ===========================================================================
-  // AUDIO
+  // AUDIO INITIALIZE
   // ===========================================================================
 
   void _initializeAudio() {
-    _logAudio('INITIALIZE AUDIO LISTENER');
-
     _audioSubscription = _audioPlayer.playerStateStream.listen((playerState) {
       if (!mounted) {
         return;
       }
 
-      _logAudio(
-        'AUDIO STATE | '
-        'processing=${playerState.processingState} | '
-        'playing=${playerState.playing}',
-      );
+      final processingState = playerState.processingState;
+      final playing = playerState.playing;
 
-      // =======================================================================
-      // AUDIO REALLY STARTED
-      // =======================================================================
-
-      if (playerState.playing) {
-        if (!_aiAudioActuallyPlaying) {
-          _aiAudioActuallyPlaying = true;
-
-          _logAudio('>>> AI AUDIO REALLY STARTED PLAYING <<<');
-        }
-      }
-
-      // =======================================================================
+      // ---------------------------------------------------------------------
       // AUDIO COMPLETED
-      // =======================================================================
+      // ---------------------------------------------------------------------
 
-      if (playerState.processingState == ProcessingState.completed) {
-        // =====================================================================
-        // IMPORTANT
-        //
-        // AudioPlayer may emit "completed" immediately because the previous
-        // audio was already completed.
-        //
-        // If we never observed playing=true for the current audio,
-        // this completed event must be ignored.
-        // =====================================================================
-
+      if (processingState == ProcessingState.completed) {
         if (!_aiAudioActuallyPlaying) {
-          _logAudio(
-            'COMPLETED IGNORED -> '
-            'NO AUDIO WAS ACTUALLY PLAYING',
-          );
-
           return;
         }
 
-        _logAudio('>>> REAL AI AUDIO COMPLETED <<<');
-
-        // Prevent duplicate completed callbacks.
         _aiAudioActuallyPlaying = false;
 
-        _logAudio('CALL _onAiAudioCompleted()');
+        unawaited(_onAiAudioCompleted());
 
-        _onAiAudioCompleted();
+        return;
+      }
+
+      // ---------------------------------------------------------------------
+      // AUDIO STARTED
+      // ---------------------------------------------------------------------
+
+      if (playing && !_aiAudioActuallyPlaying) {
+        _aiAudioActuallyPlaying = true;
       }
     });
   }
 
   // ===========================================================================
-  // OPEN
+  // SESSION
+  // ===========================================================================
+
+  void _invalidateRecordingSession() {
+    _recordingSessionId++;
+
+    _recordingRequested = false;
+
+    _speechSessionActive = false;
+
+    _isStartingSpeech = false;
+
+    _restartScheduled = false;
+  }
+
+  // ===========================================================================
+  // OPEN VOICE CHAT
   // ===========================================================================
 
   void _openVoiceChat() {
@@ -240,13 +283,27 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
     HapticFeedback.lightImpact();
 
-    _log('UI -> OPEN VOICE CHAT');
+    _voiceChatActive = true;
 
-    _chatBloc.add(SentInitEvent());
+    _isSendingVoice = false;
+
+    _recordingRequested = true;
+
+    _userHasSpoken = false;
+
+    _speechText = '';
+
+    _lastRecognizedText = '';
+
+    _speechTextBeforeCurrentSession = '';
+
+    _chatBloc.add(SentListenEvent());
+
+    unawaited(_startRecording());
   }
 
   // ===========================================================================
-  // CLOSE
+  // CLOSE VOICE CHAT
   // ===========================================================================
 
   Future<void> _closeVoiceChat() async {
@@ -256,27 +313,35 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
     HapticFeedback.lightImpact();
 
-    _log('UI -> CLOSE VOICE CHAT');
+    _voiceChatActive = false;
 
     _invalidateRecordingSession();
 
-    try {
-      _log('CLOSE -> speech.cancel()');
+    _cancelTimers();
 
-      await _speech.cancel();
-    } catch (e) {
-      _log('CLOSE -> speech.cancel() ERROR | $e');
-    }
+    // -------------------------------------------------------------------------
+    // STOP SPEECH
+    // -------------------------------------------------------------------------
 
     try {
-      _logAudio('CLOSE -> audio.stop()');
+      if (_speech.isListening) {
+        await _speech.cancel();
+      }
+    } catch (_) {}
 
+    // -------------------------------------------------------------------------
+    // STOP AI AUDIO
+    // -------------------------------------------------------------------------
+
+    try {
       _aiAudioActuallyPlaying = false;
 
       await _audioPlayer.stop();
-    } catch (e) {
-      _logAudio('CLOSE -> audio.stop() ERROR | $e');
-    }
+    } catch (_) {}
+
+    // -------------------------------------------------------------------------
+    // CLEAR STATE
+    // -------------------------------------------------------------------------
 
     _clearLocalData();
 
@@ -286,27 +351,15 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
   }
 
   // ===========================================================================
-  // INVALIDATE SESSION
+  // CANCEL TIMERS
   // ===========================================================================
 
-  void _invalidateRecordingSession() {
-    final oldSession = _recordingSessionId;
+  void _cancelTimers() {
+    _silenceTimer?.cancel();
 
-    _recordingSessionId++;
+    _silenceTimer = null;
 
-    _recordingRequested = false;
-
-    _speechSessionActive = false;
-
-    _isStartingSpeech = false;
-
-    _speechSessionStartedAt = null;
-
-    _log(
-      'INVALIDATE SESSION | '
-      'old=$oldSession | '
-      'new=$_recordingSessionId',
-    );
+    _restartScheduled = false;
   }
 
   // ===========================================================================
@@ -314,13 +367,15 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
   // ===========================================================================
 
   void _clearLocalData() {
-    _log('CLEAR LOCAL DATA');
-
     _speechText = '';
 
     _lastRecognizedText = '';
 
+    _speechTextBeforeCurrentSession = '';
+
     _soundLevel = 0;
+
+    _userHasSpoken = false;
 
     _isStartingSpeech = false;
 
@@ -328,53 +383,63 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
     _speechSessionActive = false;
 
-    _speechSessionStartedAt = null;
+    _cancelTimers();
 
     _recordingAnimationController.stop();
 
     _recordingAnimationController.value = 0;
+
+    _aiAudioActuallyPlaying = false;
+  }
+
+  // ===========================================================================
+  // WAIT FOR SPEECH TO FINISH
+  // ===========================================================================
+
+  Future<void> _waitForSpeechToFinish() async {
+    try {
+      if (_speech.isListening) {
+        await _speech.cancel();
+      }
+    } catch (_) {}
+
+    for (int i = 0; i < 20; i++) {
+      if (!mounted) {
+        return;
+      }
+
+      if (!_speech.isListening) {
+        break;
+      }
+
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+
+    await Future<void>.delayed(const Duration(milliseconds: 250));
   }
 
   // ===========================================================================
   // START RECORDING
   // ===========================================================================
 
-  Future<void> _startRecording() async {
-    if (!mounted) {
-      return;
-    }
-
-    _log('START RECORDING requested');
-
-    if (_isStartingSpeech) {
-      _log('START IGNORED -> already starting');
-
+  Future<void> _startRecording({bool force = false}) async {
+    if (!mounted || !_voiceChatActive) {
       return;
     }
 
     if (_isSendingVoice) {
-      _log('START IGNORED -> currently sending');
-
       return;
     }
 
-    final currentState = _chatBloc.state.voiceChatState;
-
-    if (currentState != VoiceChatState.init &&
-        currentState != VoiceChatState.failed) {
-      _log(
-        'START IGNORED -> invalid BLoC state | '
-        'state=$currentState',
-      );
-
+    if (_speechSessionActive && !force) {
       return;
     }
 
-    // =========================================================================
-    // NEW SESSION
-    // =========================================================================
+    if (_isStartingSpeech) {
+      return;
+    }
 
-    final int sessionId = ++_recordingSessionId;
+    final sessionId = ++_recordingSessionId;
 
     _isStartingSpeech = true;
 
@@ -382,118 +447,59 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
     _speechSessionActive = false;
 
-    _speechSessionStartedAt = null;
-
-    _speechText = '';
+    _speechTextBeforeCurrentSession = _speechText.trim();
 
     _lastRecognizedText = '';
 
-    _soundLevel = 0;
-
-    _log(
-      'NEW RECORDING SESSION STARTED | '
-      'sessionId=$sessionId | '
-      'speech.isListening=${_speech.isListening}',
-    );
-
     try {
-      // =======================================================================
-      // PERMISSION
-      // =======================================================================
-
-      _log('REQUEST MICROPHONE PERMISSION');
+      // -----------------------------------------------------------------------
+      // MICROPHONE PERMISSION
+      // -----------------------------------------------------------------------
 
       final permission = await Permission.microphone.request();
 
       if (!mounted || sessionId != _recordingSessionId) {
-        _log(
-          'PERMISSION RESULT IGNORED -> '
-          'session changed',
-        );
-
         return;
       }
-
-      _log(
-        'MICROPHONE PERMISSION RESULT | '
-        'permission=$permission | '
-        'granted=${permission.isGranted}',
-      );
 
       if (!permission.isGranted) {
         _recordingRequested = false;
 
         _speechSessionActive = false;
 
-        _isStartingSpeech = false;
-
         _chatBloc.add(SentFailedEvent());
 
         return;
       }
 
-      // =======================================================================
-      // CLEAN PREVIOUS SPEECH SESSION
-      // =======================================================================
+      // -----------------------------------------------------------------------
+      // WAIT FOR PREVIOUS SESSION
+      // -----------------------------------------------------------------------
 
-      _log(
-        'CHECK PREVIOUS SPEECH | '
-        'isListening=${_speech.isListening}',
-      );
-
-      try {
-        if (_speech.isListening) {
-          _log('PREVIOUS SPEECH IS LISTENING -> cancel()');
-
-          await _speech.cancel();
-
-          _log(
-            'PREVIOUS SPEECH CANCELLED | '
-            'isListening=${_speech.isListening}',
-          );
-        }
-      } catch (e) {
-        _log('PREVIOUS SPEECH cancel() ERROR | $e');
-      }
+      await _waitForSpeechToFinish();
 
       if (!mounted || sessionId != _recordingSessionId) {
-        _log(
-          'AFTER PREVIOUS SPEECH CLEANUP -> '
-          'SESSION CHANGED',
-        );
-
         return;
       }
 
-      // =======================================================================
-      // INITIALIZE SPEECH
-      // =======================================================================
+      // -----------------------------------------------------------------------
+      // INITIALIZE SPEECH IF NEEDED
+      // -----------------------------------------------------------------------
 
       if (!_speechInitialized) {
-        _log('SPEECH NOT INITIALIZED -> initialize()');
-
         final available = await _speech.initialize(
           onStatus: _onSpeechStatus,
           onError: _onSpeechError,
         );
 
         if (!mounted || sessionId != _recordingSessionId) {
-          _log(
-            'SPEECH INITIALIZE RESULT IGNORED -> '
-            'session changed',
-          );
-
           return;
         }
 
         if (!available) {
-          _log('SPEECH INITIALIZE FAILED');
-
           _recordingRequested = false;
 
           _speechSessionActive = false;
-
-          _isStartingSpeech = false;
 
           _chatBloc.add(SentFailedEvent());
 
@@ -501,186 +507,55 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
         }
 
         _speechInitialized = true;
-
-        _log('SPEECH INITIALIZED SUCCESSFULLY');
       }
 
-      // =======================================================================
-      // CHANGE BLOC STATE
-      // =======================================================================
+      // -----------------------------------------------------------------------
+      // ENSURE LISTENING STATE
+      // -----------------------------------------------------------------------
 
-      _log('SEND SentListenEvent');
+      if (_chatBloc.state.voiceChatState != VoiceChatState.listening) {
+        _chatBloc.add(SentListenEvent());
 
-      _chatBloc.add(SentListenEvent());
-
-      await Future<void>.delayed(Duration.zero);
-
-      if (!mounted ||
-          sessionId != _recordingSessionId ||
-          !_recordingRequested) {
-        _log(
-          'AFTER SentListenEvent -> START ABORTED | '
-          'sessionId=$sessionId | '
-          'currentSession=$_recordingSessionId | '
-          'requested=$_recordingRequested',
-        );
-
-        return;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
       }
-
-      // =======================================================================
-      // START SPEECH
-      // =======================================================================
-
-      _log(
-        'CALL speech.listen() | '
-        'sessionId=$sessionId | '
-        'currentState=${_chatBloc.state.voiceChatState}',
-      );
-
-      await _speech.listen(
-        listenOptions: stt.SpeechListenOptions(
-          localeId: Localizations.localeOf(context).toString(),
-          listenFor: const Duration(minutes: 5),
-          pauseFor: const Duration(seconds: 5),
-          partialResults: true,
-        ),
-        onSoundLevelChange: _onSoundLevelChange,
-        onResult: _onSpeechResult,
-      );
-
-      _log(
-        'speech.listen() RETURNED | '
-        'sessionId=$sessionId | '
-        'isListening=${_speech.isListening}',
-      );
-
-      if (!mounted ||
-          sessionId != _recordingSessionId ||
-          !_recordingRequested) {
-        _log(
-          'speech.listen() RESULT IGNORED | '
-          'sessionId=$sessionId | '
-          'currentSession=$_recordingSessionId | '
-          'requested=$_recordingRequested',
-        );
-
-        return;
-      }
-
-      // =======================================================================
-      // SPEECH SESSION REALLY ACTIVE
-      // =======================================================================
-
-      _speechSessionActive = true;
-
-      _speechSessionStartedAt = DateTime.now();
-
-      _log(
-        '!!! SPEECH SESSION REALLY ACTIVE !!! | '
-        'session=$sessionId | '
-        'startedAt=$_speechSessionStartedAt | '
-        'isListening=${_speech.isListening}',
-      );
-    } catch (e) {
-      _log('START RECORDING ERROR | error=$e');
 
       if (!mounted || sessionId != _recordingSessionId) {
         return;
       }
 
-      _recordingRequested = false;
+      // -----------------------------------------------------------------------
+      // START STT
+      // -----------------------------------------------------------------------
+
+      _speechSessionActive = true;
+
+      await _speech.listen(
+        listenOptions: stt.SpeechListenOptions(
+          localeId: Localizations.localeOf(context).toString(),
+          listenFor: _speechListenDuration,
+          pauseFor: _speechPauseDuration,
+          partialResults: true,
+          cancelOnError: false,
+          listenMode: stt.ListenMode.dictation,
+        ),
+        onSoundLevelChange: _onSoundLevelChange,
+        onResult: _onSpeechResult,
+      );
+
+      if (!mounted || sessionId != _recordingSessionId) {
+        return;
+      }
+
+      _speechSessionActive = true;
+    } catch (_) {
+      if (!mounted || sessionId != _recordingSessionId) {
+        return;
+      }
 
       _speechSessionActive = false;
-
-      _speechSessionStartedAt = null;
-
-      _isStartingSpeech = false;
-
-      _speechText = '';
-
-      _lastRecognizedText = '';
-
-      _soundLevel = 0;
-
-      _recordingAnimationController.stop();
-
-      _recordingAnimationController.value = 0;
-
-      _chatBloc.add(SentFailedEvent());
     } finally {
-      if (sessionId == _recordingSessionId) {
-        _isStartingSpeech = false;
-
-        _log(
-          'START RECORDING FINALLY | '
-          'session=$sessionId',
-        );
-      }
+      _isStartingSpeech = false;
     }
-  }
-
-  // ===========================================================================
-  // STOP RECORDING
-  // ===========================================================================
-
-  Future<void> _stopRecording() async {
-    if (!mounted) {
-      return;
-    }
-
-    _log(
-      'USER STOP RECORDING | '
-      'text="$_speechText" | '
-      'isListening=${_speech.isListening}',
-    );
-
-    _recordingRequested = false;
-
-    _speechSessionActive = false;
-
-    _speechSessionStartedAt = null;
-
-    _isStartingSpeech = false;
-
-    _recordingSessionId++;
-
-    _log(
-      'USER STOP -> speech.stop() | '
-      'newSession=$_recordingSessionId',
-    );
-
-    try {
-      await _speech.stop();
-
-      _log(
-        'USER STOP -> speech.stop() DONE | '
-        'isListening=${_speech.isListening}',
-      );
-    } catch (e) {
-      _log('USER STOP -> speech.stop() ERROR | $e');
-    }
-
-    if (!mounted) {
-      return;
-    }
-
-    final message = _speechText.trim();
-
-    _log(
-      'USER STOP -> FINAL MESSAGE | '
-      'message="$message"',
-    );
-
-    if (message.isEmpty) {
-      _log('USER STOP -> EMPTY MESSAGE -> RETURN INIT');
-
-      await _returnToInit();
-
-      return;
-    }
-
-    await _sendVoiceMessage(message);
   }
 
   // ===========================================================================
@@ -688,182 +563,19 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
   // ===========================================================================
 
   void _onSpeechStatus(String status) {
-    if (!mounted) {
+    if (!mounted || !_voiceChatActive) {
       return;
     }
 
-    _log(
-      '>>> SPEECH STATUS CALLBACK <<< | '
-      'status="$status" | '
-      'isListening=${_speech.isListening}',
-    );
-
-    // =========================================================================
-    // Ignore callbacks when user did not request recording.
-    // =========================================================================
-
-    if (!_recordingRequested) {
-      _log(
-        'STATUS IGNORED -> recordingRequested=false | '
-        'status=$status',
-      );
+    if (status == 'listening') {
+      _speechSessionActive = true;
 
       return;
     }
 
-    // =========================================================================
-    // While starting, status callbacks are not reliable.
-    // =========================================================================
-
-    if (_isStartingSpeech) {
-      _log(
-        'STATUS IGNORED -> isStartingSpeech=true | '
-        'status=$status',
-      );
-
-      return;
+    if (status == 'done' || status == 'notListening') {
+      _speechSessionActive = false;
     }
-
-    // =========================================================================
-    // The new speech session MUST actually be active.
-    // =========================================================================
-
-    if (!_speechSessionActive) {
-      _log(
-        'STATUS IGNORED -> speechSessionActive=false | '
-        'status=$status',
-      );
-
-      return;
-    }
-
-    // =========================================================================
-    // Delayed callback protection.
-    // =========================================================================
-
-    final startedAt = _speechSessionStartedAt;
-
-    if (startedAt == null) {
-      _log(
-        'STATUS IGNORED -> startedAt=null | '
-        'status=$status',
-      );
-
-      return;
-    }
-
-    final elapsed = DateTime.now().difference(startedAt);
-
-    const staleCallbackProtection = Duration(milliseconds: 800);
-
-    if (elapsed < staleCallbackProtection) {
-      _log(
-        'STATUS IGNORED -> stale callback protection | '
-        'status=$status | '
-        'elapsed=${elapsed.inMilliseconds}ms',
-      );
-
-      return;
-    }
-
-    // =========================================================================
-    // Only these statuses mean recognition ended.
-    // =========================================================================
-
-    if (status != 'done' && status != 'notListening') {
-      _log(
-        'STATUS IGNORED -> status is not terminal | '
-        'status=$status',
-      );
-
-      return;
-    }
-
-    // =========================================================================
-    // If recognizer is still listening, do not terminate current session.
-    // =========================================================================
-
-    if (_speech.isListening) {
-      _log(
-        'STATUS IGNORED -> speech.isListening=true | '
-        'status=$status',
-      );
-
-      return;
-    }
-
-    // =========================================================================
-    // Must still be in listening state.
-    // =========================================================================
-
-    if (_chatBloc.state.voiceChatState != VoiceChatState.listening) {
-      _log(
-        'STATUS IGNORED -> BLoC is not listening | '
-        'status=$status',
-      );
-
-      return;
-    }
-
-    _log(
-      'STATUS ACCEPTED -> SPEECH SESSION FINISHED | '
-      'status=$status',
-    );
-
-    _recordingRequested = false;
-
-    _speechSessionActive = false;
-
-    _speechSessionStartedAt = null;
-
-    _handleSpeechFinished();
-  }
-
-  // ===========================================================================
-  // SPEECH FINISHED
-  // ===========================================================================
-
-  Future<void> _handleSpeechFinished() async {
-    if (!mounted) {
-      return;
-    }
-
-    _log(
-      'HANDLE SPEECH FINISHED | '
-      'text="$_speechText"',
-    );
-
-    _recordingRequested = false;
-
-    _speechSessionActive = false;
-
-    _speechSessionStartedAt = null;
-
-    _isStartingSpeech = false;
-
-    final message = _speechText.trim();
-
-    if (message.isEmpty) {
-      _log('SPEECH FINISHED -> EMPTY -> RETURN INIT');
-
-      await _returnToInit();
-
-      return;
-    }
-
-    try {
-      _log('SPEECH FINISHED -> speech.stop()');
-
-      await _speech.stop();
-    } catch (e) {
-      _log('SPEECH FINISHED -> speech.stop() ERROR | $e');
-    }
-
-    if (!mounted) {
-      return;
-    }
-
-    await _sendVoiceMessage(message);
   }
 
   // ===========================================================================
@@ -871,44 +583,21 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
   // ===========================================================================
 
   void _onSpeechError(dynamic error) {
-    if (!mounted) {
+    if (!mounted || !_voiceChatActive) {
       return;
     }
-
-    _log(
-      '>>> SPEECH ERROR <<< | '
-      'error=$error',
-    );
-
-    if (!_recordingRequested &&
-        _chatBloc.state.voiceChatState != VoiceChatState.listening) {
-      _log(
-        'SPEECH ERROR IGNORED -> '
-        'not recording and not listening',
-      );
-
-      return;
-    }
-
-    _recordingRequested = false;
 
     _speechSessionActive = false;
 
-    _speechSessionStartedAt = null;
+    final errorText = error.toString();
 
-    _isStartingSpeech = false;
+    if (errorText.contains('error_busy')) {
+      return;
+    }
 
-    _speechText = '';
-
-    _lastRecognizedText = '';
-
-    _soundLevel = 0;
-
-    _isSendingVoice = false;
-
-    _recordingAnimationController.stop();
-
-    _recordingAnimationController.value = 0;
+    if (_recordingRequested && !_isSendingVoice) {
+      return;
+    }
 
     _chatBloc.add(SentFailedEvent());
   }
@@ -918,11 +607,7 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
   // ===========================================================================
 
   void _onSoundLevelChange(double level) {
-    if (!mounted) {
-      return;
-    }
-
-    if (!_recordingRequested) {
+    if (!mounted || !_voiceChatActive || _isSendingVoice) {
       return;
     }
 
@@ -934,9 +619,35 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
       return;
     }
 
-    setState(() {
-      _soundLevel = level;
-    });
+    _soundLevel = level;
+  }
+
+  // ===========================================================================
+  // MERGE SPEECH TEXT
+  // ===========================================================================
+
+  String _mergeSpeechText(String recognizedText) {
+    final current = recognizedText.trim();
+
+    if (current.isEmpty) {
+      return _speechTextBeforeCurrentSession;
+    }
+
+    final base = _speechTextBeforeCurrentSession.trim();
+
+    if (base.isEmpty) {
+      return current;
+    }
+
+    if (current.startsWith(base)) {
+      return current;
+    }
+
+    if (base == current) {
+      return base;
+    }
+
+    return '$base $current'.trim();
   }
 
   // ===========================================================================
@@ -948,57 +659,125 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
       return;
     }
 
-    _log(
-      'SPEECH RESULT | '
-      '"${result.recognizedWords}" | '
-      'final=${result.finalResult}',
-    );
+    final current = result.recognizedWords.trim();
 
-    if (!_recordingRequested) {
-      _log('RESULT IGNORED -> recordingRequested=false');
-
+    if (!_voiceChatActive || current.isEmpty) {
       return;
     }
 
-    if (!_speechSessionActive) {
-      _log('RESULT IGNORED -> speechSessionActive=false');
-
+    if (!_speechSessionActive && !_speech.isListening) {
       return;
     }
 
     if (_chatBloc.state.voiceChatState != VoiceChatState.listening) {
-      _log('RESULT IGNORED -> BLoC is not listening');
-
       return;
     }
 
-    final current = result.recognizedWords.trim();
+    final mergedText = _mergeSpeechText(current);
 
-    if (current.isEmpty) {
+    if (mergedText == _lastRecognizedText) {
       return;
     }
 
-    if (current == _lastRecognizedText) {
-      _log(
-        'RESULT IGNORED -> duplicate text | '
-        '"$current"',
-      );
+    _lastRecognizedText = mergedText;
 
-      return;
-    }
+    _speechText = mergedText;
 
-    _lastRecognizedText = current;
+    _userHasSpoken = true;
 
-    _speechText = current;
+    _lastUserSpeechAt = DateTime.now();
 
-    _log(
-      'SPEECH TEXT UPDATED | '
-      '"$_speechText"',
-    );
+    try {
+      _speech.changePauseFor(_speechPauseDuration);
+    } catch (_) {}
+
+    _startSilenceTimer();
   }
 
   // ===========================================================================
-  // SEND VOICE
+  // SILENCE TIMER
+  // ===========================================================================
+
+  void _startSilenceTimer() {
+    _silenceTimer?.cancel();
+
+    if (!_userHasSpoken) {
+      return;
+    }
+
+    final session = _recordingSessionId;
+
+    _silenceTimer = Timer(_submitSilenceDuration, () async {
+      if (!mounted || !_voiceChatActive || _isSendingVoice || !_userHasSpoken) {
+        return;
+      }
+
+      if (session != _recordingSessionId) {
+        return;
+      }
+
+      final lastSpeech = _lastUserSpeechAt;
+
+      if (lastSpeech != null) {
+        final elapsed = DateTime.now().difference(lastSpeech);
+
+        if (elapsed < _submitSilenceDuration) {
+          _startSilenceTimer();
+
+          return;
+        }
+      }
+
+      final message = _speechText.trim();
+
+      if (message.isEmpty) {
+        return;
+      }
+
+      await _finishUserSpeechAndSend(message);
+    });
+  }
+
+  // ===========================================================================
+  // FINISH USER SPEECH
+  // ===========================================================================
+
+  Future<void> _finishUserSpeechAndSend(String message) async {
+    if (!mounted || _isSendingVoice) {
+      return;
+    }
+
+    final text = message.trim();
+
+    if (text.isEmpty) {
+      return;
+    }
+
+    _silenceTimer?.cancel();
+
+    _silenceTimer = null;
+
+    _recordingRequested = false;
+
+    _speechSessionActive = false;
+
+    _userHasSpoken = false;
+
+    try {
+      if (_speech.isListening) {
+        await _speech.stop();
+      }
+    } catch (_) {}
+
+    if (!mounted) {
+      return;
+    }
+
+    await _sendVoiceMessage(text);
+  }
+
+  // ===========================================================================
+  // SEND VOICE MESSAGE
   // ===========================================================================
 
   Future<void> _sendVoiceMessage(String message) async {
@@ -1006,86 +785,301 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
       return;
     }
 
-    if (_isSendingVoice) {
-      _log('SEND IGNORED -> already sending');
-
-      return;
-    }
-
     final text = message.trim();
 
-    if (text.isEmpty) {
-      _log('SEND IGNORED -> empty text');
-
-      await _returnToInit();
-
+    if (text.isEmpty || _isSendingVoice) {
       return;
     }
 
-    _log(
-      '!!! SEND VOICE MESSAGE !!! | '
-      'text="$text"',
-    );
+    _isSendingVoice = true;
 
     _recordingRequested = false;
 
     _speechSessionActive = false;
 
-    _speechSessionStartedAt = null;
-
-    _isStartingSpeech = false;
+    _userHasSpoken = false;
 
     _speechText = '';
 
     _lastRecognizedText = '';
 
+    _speechTextBeforeCurrentSession = '';
+
     _soundLevel = 0;
 
-    _isSendingVoice = true;
-
-    _log('BLOC -> SentLoadingEvent');
-
     _chatBloc.add(SentLoadingEvent());
-
-    _log('BLOC -> SendVoiceEvent');
 
     _chatBloc.add(SendVoiceEvent(params: SendVoiceParams(message: text)));
   }
 
   // ===========================================================================
-  // RETURN INIT
+  // PLAY AI AUDIO
   // ===========================================================================
 
-  Future<void> _returnToInit() async {
+  Future<void> _playAiAudio(String answer) async {
+    if (!mounted || !_voiceChatActive) {
+      return;
+    }
+
+    try {
+      final url = _extractAudioUrl(answer);
+
+      // -----------------------------------------------------------------------
+      // NO AUDIO URL
+      // -----------------------------------------------------------------------
+
+      if (url == null || url.isEmpty) {
+        _isSendingVoice = false;
+
+        _recordingRequested = true;
+
+        _chatBloc.add(SentListenEvent());
+
+        await _startRecording(force: true);
+
+        return;
+      }
+
+      // -----------------------------------------------------------------------
+      // INVALIDATE USER SESSION
+      // -----------------------------------------------------------------------
+
+      _aiAudioActuallyPlaying = false;
+
+      _recordingRequested = false;
+
+      _speechSessionActive = false;
+
+      _isStartingSpeech = false;
+
+      _restartScheduled = false;
+
+      _recordingSessionId++;
+
+      // -----------------------------------------------------------------------
+      // STOP STT
+      // -----------------------------------------------------------------------
+
+      try {
+        if (_speech.isListening) {
+          await _speech.cancel();
+        }
+      } catch (_) {}
+
+      await _waitForSpeechToFinish();
+
+      if (!mounted || !_voiceChatActive) {
+        return;
+      }
+
+      // -----------------------------------------------------------------------
+      // STOP PREVIOUS AUDIO
+      // -----------------------------------------------------------------------
+
+      try {
+        await _audioPlayer.stop();
+      } catch (_) {}
+
+      if (!mounted || !_voiceChatActive) {
+        return;
+      }
+
+      // -----------------------------------------------------------------------
+      // LOAD AUDIO
+      // -----------------------------------------------------------------------
+
+      await _audioPlayer.setUrl(url);
+
+      if (!mounted || !_voiceChatActive) {
+        return;
+      }
+
+      // -----------------------------------------------------------------------
+      // PLAY
+      // -----------------------------------------------------------------------
+
+      await _audioPlayer.play();
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      _aiAudioActuallyPlaying = false;
+
+      _isSendingVoice = false;
+
+      _recordingRequested = true;
+
+      _chatBloc.add(SentListenEvent());
+
+      await _startRecording(force: true);
+    }
+  }
+
+  // ===========================================================================
+  // STOP AI AUDIO
+  // ===========================================================================
+
+  Future<void> _stopAiAudio() async {
     if (!mounted) {
       return;
     }
 
-    _log('RETURN TO INIT');
+    // -------------------------------------------------------------------------
+    // INVALIDATE AI SESSION
+    // -------------------------------------------------------------------------
 
-    _invalidateRecordingSession();
+    _aiAudioActuallyPlaying = false;
+
+    _recordingRequested = false;
+
+    _speechSessionActive = false;
+
+    _isStartingSpeech = false;
+
+    _restartScheduled = false;
+
+    _recordingSessionId++;
+
+    // -------------------------------------------------------------------------
+    // STOP AUDIO
+    // -------------------------------------------------------------------------
+
+    try {
+      await _audioPlayer.stop();
+    } catch (_) {}
+
+    // -------------------------------------------------------------------------
+    // STOP OLD STT
+    // -------------------------------------------------------------------------
 
     try {
       if (_speech.isListening) {
-        _log('RETURN INIT -> speech.stop()');
-
-        await _speech.stop();
+        await _speech.cancel();
       }
-    } catch (e) {
-      _log('RETURN INIT -> speech.stop() ERROR | $e');
+    } catch (_) {}
+
+    await _waitForSpeechToFinish();
+
+    if (!mounted || !_voiceChatActive) {
+      return;
     }
 
-    try {
-      _aiAudioActuallyPlaying = false;
+    // -------------------------------------------------------------------------
+    // RESET USER SESSION
+    // -------------------------------------------------------------------------
 
-      await _audioPlayer.stop();
-    } catch (e) {
-      _logAudio('RETURN INIT -> audio.stop() ERROR | $e');
+    _isSendingVoice = false;
+
+    _userHasSpoken = false;
+
+    _speechText = '';
+
+    _lastRecognizedText = '';
+
+    _speechTextBeforeCurrentSession = '';
+
+    _soundLevel = 0;
+
+    // -------------------------------------------------------------------------
+    // GO TO LISTENING
+    // -------------------------------------------------------------------------
+
+    _chatBloc.add(SentListenEvent());
+
+    _recordingRequested = true;
+
+    await _startRecording(force: true);
+  }
+
+  // ===========================================================================
+  // AI AUDIO COMPLETED
+  // ===========================================================================
+
+  Future<void> _onAiAudioCompleted() async {
+    if (!mounted || !_voiceChatActive) {
+      return;
     }
 
-    _clearLocalData();
+    // -------------------------------------------------------------------------
+    // INVALIDATE AI STATE
+    // -------------------------------------------------------------------------
 
-    _chatBloc.add(SentInitEvent());
+    _aiAudioActuallyPlaying = false;
+
+    _isSendingVoice = false;
+
+    _recordingRequested = true;
+
+    _speechSessionActive = false;
+
+    _isStartingSpeech = false;
+
+    _restartScheduled = false;
+
+    // -------------------------------------------------------------------------
+    // RESET USER SESSION
+    // -------------------------------------------------------------------------
+
+    _userHasSpoken = false;
+
+    _speechText = '';
+
+    _lastRecognizedText = '';
+
+    _speechTextBeforeCurrentSession = '';
+
+    _soundLevel = 0;
+
+    _recordingSessionId++;
+
+    // -------------------------------------------------------------------------
+    // CLOSE OLD STT
+    // -------------------------------------------------------------------------
+
+    await _waitForSpeechToFinish();
+
+    if (!mounted || !_voiceChatActive) {
+      return;
+    }
+
+    // -------------------------------------------------------------------------
+    // LISTENING
+    // -------------------------------------------------------------------------
+
+    _chatBloc.add(SentListenEvent());
+
+    await _startRecording(force: true);
+  }
+
+  // ===========================================================================
+  // AUDIO URL
+  // ===========================================================================
+
+  String? _extractAudioUrl(String value) {
+    final text = value.trim();
+
+    if (text.isEmpty) {
+      return null;
+    }
+
+    // -------------------------------------------------------------------------
+    // MARKDOWN URL
+    // -------------------------------------------------------------------------
+
+    final markdownMatch = RegExp(r'\]\((https?:\/\/[^)]+)\)').firstMatch(text);
+
+    if (markdownMatch != null) {
+      return markdownMatch.group(1);
+    }
+
+    // -------------------------------------------------------------------------
+    // PLAIN URL
+    // -------------------------------------------------------------------------
+
+    final urlMatch = RegExp(r'https?:\/\/[^\s]+').firstMatch(text);
+
+    return urlMatch?.group(0);
   }
 
   // ===========================================================================
@@ -1101,24 +1095,29 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
             current.voiceChatState == VoiceChatState.aiSpeaking;
       },
       listener: (context, state) {
-        _log('!!! BLOC TRANSITION -> aiSpeaking !!!');
-
         final answer = state.voiceData.data?.data?.answer;
 
-        _log(
-          'AI SPEAKING LISTENER | '
-          'answer=$answer',
-        );
+        // ---------------------------------------------------------------------
+        // NO ANSWER
+        // ---------------------------------------------------------------------
 
         if (answer == null || answer.trim().isEmpty) {
-          _log('AI ANSWER EMPTY -> RETURN INIT');
+          _isSendingVoice = false;
 
-          _returnToInit();
+          _recordingRequested = true;
+
+          _chatBloc.add(SentListenEvent());
+
+          unawaited(_startRecording(force: true));
 
           return;
         }
 
-        _playAiAudio(answer.trim());
+        // ---------------------------------------------------------------------
+        // PLAY AI
+        // ---------------------------------------------------------------------
+
+        unawaited(_playAiAudio(answer.trim()));
       },
       child: BlocBuilder<ChatBloc, ChatState>(
         bloc: _chatBloc,
@@ -1139,17 +1138,17 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     return AnimatedContainer(
       duration: const Duration(milliseconds: 280),
       curve: Curves.easeOut,
-      padding:  EdgeInsets.symmetric(horizontal: 14, vertical:isDisable?14: 10),
+      padding: EdgeInsets.symmetric(
+        horizontal:isDisable?18: 14,
+        vertical: isDisable ? 18 : 10,
+      ),
       decoration: BoxDecoration(
         color: isDisable ? context.primarySwatch : null,
         gradient: LinearGradient(
-                colors: [
-                  context.primarySwatch.derivedColor,
-                  context.primarySwatch,
-                ],
-                begin: Alignment.bottomCenter,
-                end: Alignment.topCenter,
-              ),
+          colors: [context.primarySwatch.derivedColor, context.primarySwatch, context.primarySwatch],
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+        ),
         borderRadius: BorderRadius.circular(5000),
         boxShadow: [
           BoxShadow(
@@ -1163,15 +1162,6 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
         duration: const Duration(milliseconds: 280),
         switchInCurve: Curves.easeOut,
         switchOutCurve: Curves.easeIn,
-        layoutBuilder: (currentChild, previousChildren) {
-          return Stack(
-            alignment: Alignment.center,
-            children: [
-              ...previousChildren,
-              if (currentChild != null) currentChild,
-            ],
-          );
-        },
         child: _buildStateContent(state),
       ),
     );
@@ -1184,502 +1174,57 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
   Widget _buildStateContent(ChatState state) {
     switch (state.voiceChatState) {
       case VoiceChatState.disable:
-        return _buildDisableContent();
-
-      case VoiceChatState.init:
-        return _buildInitContent();
+        return VoiceDisableContent(onTap: _openVoiceChat);
 
       case VoiceChatState.listening:
-        return _buildListeningContent();
+        return VoiceListeningContent(
+          onClose: _closeVoiceChat,
+          animation: _recordingAnimationController,
+        );
 
       case VoiceChatState.loading:
-        return _buildLoadingContent();
+        return VoiceLoadingContent(onClose: _closeVoiceChat);
 
       case VoiceChatState.aiSpeaking:
-        return _buildAiSpeakingContent();
+        return VoiceAiSpeakingContent(
+          onStop: _stopAiAudio,
+          onClose: _closeVoiceChat,
+        );
 
       case VoiceChatState.failed:
-        return _buildFailedContent();
+        return VoiceFailedContent(
+          onRetry: _retryVoiceChat,
+          onClose: _closeVoiceChat,
+        );
     }
   }
 
   // ===========================================================================
-  // DISABLE
+  // RETRY
   // ===========================================================================
 
-  Widget _buildDisableContent() {
-    return GestureDetector(
-      key: const ValueKey('disableContent'),
-      onTap: _openVoiceChat,
-      child: Assets.images.png.robot.image(
-        height: 24,
-        color: context.cardColor,
-      ),
-    );
-  }
-
-  // ===========================================================================
-  // INIT
-  // ===========================================================================
-
-  Widget _buildInitContent() {
-    return Row(
-      key: const ValueKey('initContent'),
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        GestureDetector(
-          onTap: () {
-            HapticFeedback.lightImpact();
-
-            _log('UI -> MIC TAP');
-
-            _startRecording();
-          },
-          child: _buildCircleIcon(Icons.mic_rounded),
-        ),
-        const SizedBox(width: 12),
-        Text(LocaleKeys.chatTalkNow.tr(), style: context.bodyMedium(color: context.cardColor)),
-        const SizedBox(width: 12),
-        _buildBackButton(),
-      ],
-    );
-  }
-
-  // ===========================================================================
-  // LISTENING
-  // ===========================================================================
-
-  Widget _buildListeningContent() {
-    return Row(
-      key: const ValueKey('listeningContent'),
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        GestureDetector(
-          onTap: () {
-            HapticFeedback.lightImpact();
-
-            _log('UI -> STOP MIC TAP');
-
-            _stopRecording();
-          },
-          child: _buildCircleIcon(Icons.mic_rounded, isRecording: true),
-        ),
-        const SizedBox(width: 12),
-        Text(
-          LocaleKeys.audioRecording.tr(),
-          style: context.bodyMedium(color: context.cardColor),
-        ),
-        const SizedBox(width: 12),
-        _buildBackButton(),
-      ],
-    );
-  }
-
-  // ===========================================================================
-  // LOADING
-  // ===========================================================================
-
-  Widget _buildLoadingContent() {
-    return Row(
-      key: const ValueKey('loadingContent'),
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.15),
-            shape: BoxShape.circle,
-          ),
-          alignment: Alignment.center,
-          child: const SizedBox(
-            width: 21,
-            height: 21,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.3,
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-         Text(
-            LocaleKeys.chatThinking.tr(),
-          style: context.bodyMedium(color: context.cardColor),
-        ),
-        const SizedBox(width: 12),
-        _buildBackButton(),
-      ],
-    );
-  }
-
-  // ===========================================================================
-  // AI SPEAKING
-  // ===========================================================================
-
-  Widget _buildAiSpeakingContent() {
-    return Row(
-      key: const ValueKey('aiSpeakingContent'),
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        GestureDetector(
-          onTap: _stopAiAudio,
-          child: _buildCircleIcon(Icons.stop_rounded),
-        ),
-        const SizedBox(width: 12),
-        SizedBox(height: 45,
-    width: context.width*.3
-    // width: context.isMobile
-    // ? context.width*.3
-    //     : context.isTablet
-    // ? context.width * .7
-    //     : context.width * .5
-
-            , child: AiWaveWidget()),
-        const SizedBox(width: 8),
-        _buildBackButton(),
-      ],
-    );
-  }
-
-  // ===========================================================================
-  // FAILED
-  // ===========================================================================
-
-  Widget _buildFailedContent() {
-    return Row(
-      key: const ValueKey('failedContent'),
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        GestureDetector(
-          onTap: () {
-            HapticFeedback.lightImpact();
-
-            _log('UI -> TRY AGAIN');
-
-            _isSendingVoice = false;
-
-            _recordingRequested = false;
-
-            _speechSessionActive = false;
-
-            _isStartingSpeech = false;
-
-            _recordingSessionId++;
-
-            _startRecording();
-          },
-          child: _buildCircleIcon(Icons.refresh_rounded),
-        ),
-        const SizedBox(width: 12),
-        Text(LocaleKeys.retryChat.tr(), style: context.bodyMedium(color: context.cardColor)),
-        const SizedBox(width: 12),
-        _buildBackButton(),
-      ],
-    );
-  }
-
-  // ===========================================================================
-  // PLAY AI AUDIO
-  // ===========================================================================
-
-  Future<void> _playAiAudio(String answer) async {
-    try {
-      _logAudio(
-        'PLAY AI AUDIO START | '
-        'answer="$answer"',
-      );
-
-      final url = _extractAudioUrl(answer);
-
-      if (url == null || url.isEmpty) {
-        _logAudio('AUDIO URL INVALID -> RETURN INIT');
-
-        await _returnToInit();
-
-        return;
-      }
-
-      _logAudio(
-        'EXTRACT AUDIO URL | '
-        'url=$url',
-      );
-
-      // =========================================================================
-      // IMPORTANT
-      //
-      // Reset this BEFORE stop().
-      //
-      // Otherwise a previous completed state could be mistaken as the
-      // completion of the new audio.
-      // =========================================================================
-
-      _aiAudioActuallyPlaying = false;
-
-      _logAudio('RESET _aiAudioActuallyPlaying=false');
-
-      // =========================================================================
-      // STOP PREVIOUS PLAYER
-      // =========================================================================
-
-      _logAudio('AUDIO stop()');
-
-      await _audioPlayer.stop();
-
-      if (!mounted) {
-        return;
-      }
-
-      // =========================================================================
-      // SET NEW URL
-      // =========================================================================
-
-      _logAudio('AUDIO setUrl()');
-
-      await _audioPlayer.setUrl(url);
-
-      if (!mounted) {
-        return;
-      }
-
-      _logAudio(
-        'AUDIO setUrl() DONE | '
-        'processing=${_audioPlayer.processingState} | '
-        'playing=${_audioPlayer.playing}',
-      );
-
-      // =========================================================================
-      // PLAY
-      // =========================================================================
-
-      _logAudio('AUDIO play()');
-
-      await _audioPlayer.play();
-
-      _logAudio(
-        'AUDIO play() RETURNED | '
-        'processing=${_audioPlayer.processingState} | '
-        'playing=${_audioPlayer.playing}',
-      );
-    } catch (e) {
-      _logAudio('PLAY AUDIO ERROR | error=$e');
-
-      if (!mounted) {
-        return;
-      }
-
-      _aiAudioActuallyPlaying = false;
-
-      _isSendingVoice = false;
-
-      await _returnToInit();
-    }
-  }
-
-  // ===========================================================================
-  // STOP AI AUDIO
-  // ===========================================================================
-
-  Future<void> _stopAiAudio() async {
-    _logAudio('USER STOP AI AUDIO');
-
-    // =========================================================================
-    // IMPORTANT
-    //
-    // stop() may lead to a completed state.
-    // We don't want that completed state to call _onAiAudioCompleted().
-    // =========================================================================
-
-    _aiAudioActuallyPlaying = false;
-
-    _logAudio('USER STOP -> _aiAudioActuallyPlaying=false');
-
-    try {
-      await _audioPlayer.stop();
-
-      _logAudio('USER STOP -> audio.stop() DONE');
-    } catch (e) {
-      _logAudio('USER STOP -> audio.stop() ERROR | $e');
-    }
-
+  void _retryVoiceChat() {
     if (!mounted) {
       return;
     }
 
-    _invalidateRecordingSession();
+    HapticFeedback.lightImpact();
 
     _isSendingVoice = false;
 
-    _speechText = '';
+    _recordingRequested = true;
 
-    _lastRecognizedText = '';
-
-    _soundLevel = 0;
-
-    _chatBloc.add(SentInitEvent());
-
-    _chatBloc.add(ResetVoiceEvent());
-  }
-
-  // ===========================================================================
-  // AI AUDIO COMPLETED
-  // ===========================================================================
-
-  Future<void> _onAiAudioCompleted() async {
-    if (!mounted) {
-      return;
-    }
-
-    _logAudio('====================================================');
-
-    _logAudio('!!! AI AUDIO COMPLETED !!!');
-
-    _logAudio(
-      'Previous session before invalidate | '
-      'session=$_recordingSessionId | '
-      'speechListening=${_speech.isListening}',
-    );
-
-    // =========================================================================
-    // Completely invalidate the previous recording session.
-    // =========================================================================
-
-    _invalidateRecordingSession();
-
-    _isSendingVoice = false;
+    _voiceChatActive = true;
 
     _speechText = '';
 
+    _speechTextBeforeCurrentSession = '';
+
     _lastRecognizedText = '';
 
-    _soundLevel = 0;
+    _chatBloc.add(SentListenEvent());
 
-    _recordingAnimationController.stop();
-
-    _recordingAnimationController.value = 0;
-
-    // =========================================================================
-    // IMPORTANT
-    //
-    // This should normally be false here.
-    //
-    // But if for any reason an old SpeechToText session is still alive,
-    // cancel it before returning to init.
-    // =========================================================================
-
-    if (_speech.isListening) {
-      _logAudio('AUDIO COMPLETED -> OLD SPEECH STILL LISTENING -> cancel()');
-
-      try {
-        await _speech.cancel();
-
-        _logAudio(
-          'AUDIO COMPLETED -> OLD SPEECH CANCELLED | '
-          'isListening=${_speech.isListening}',
-        );
-      } catch (e) {
-        _logAudio('AUDIO COMPLETED -> speech.cancel() ERROR | $e');
-      }
-    } else {
-      _logAudio('AUDIO COMPLETED -> no active old speech session');
-    }
-
-    if (!mounted) {
-      return;
-    }
-
-    _logAudio('AUDIO COMPLETED -> ResetAfterFinishVoiceEvent');
-
-    _chatBloc.add(ResetAfterFinishVoiceEvent());
-
-    _logAudio('====================================================');
-  }
-
-  // ===========================================================================
-  // EXTRACT AUDIO URL
-  // ===========================================================================
-
-  String? _extractAudioUrl(String value) {
-    final text = value.trim();
-
-    if (text.isEmpty) {
-      return null;
-    }
-
-    final markdownMatch = RegExp(r'\]\((https?:\/\/[^)]+)\)').firstMatch(text);
-
-    if (markdownMatch != null) {
-      return markdownMatch.group(1);
-    }
-
-    final urlMatch = RegExp(r'https?:\/\/[^\s]+').firstMatch(text);
-
-    if (urlMatch != null) {
-      return urlMatch.group(0);
-    }
-
-    return null;
-  }
-
-  // ===========================================================================
-  // BACK BUTTON
-  // ===========================================================================
-
-  Widget _buildBackButton() {
-    return GestureDetector(
-      onTap: _closeVoiceChat,
-      child: Container(
-        width: 36,
-        height: 36,
-        alignment: Alignment.center,
-        child: const Icon(
-          Icons.arrow_back_rounded,
-          color: Colors.white,
-          size: 20,
-        ),
-      ),
-    );
-  }
-
-  // ===========================================================================
-  // CIRCLE ICON
-  // ===========================================================================
-
-  Widget _buildCircleIcon(IconData icon, {bool isRecording = false}) {
-    final circle = Container(
-      width: 42,
-      height: 42,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.15),
-        shape: BoxShape.circle,
-      ),
-      alignment: Alignment.center,
-      child: Icon(icon, color: Colors.white, size: 25),
-    );
-
-    if (!isRecording) {
-      return circle;
-    }
-
-    if (!_recordingAnimationController.isAnimating) {
-      _recordingAnimationController.repeat(reverse: true);
-    }
-
-    return AnimatedBuilder(
-      animation: _recordingAnimationController,
-      child: circle,
-      builder: (context, child) {
-        final value = _recordingAnimationController.value;
-
-        final scale = 0.94 + (value * 0.10);
-
-        final opacity = 0.70 + (value * 0.30);
-
-        return Transform.scale(
-          scale: scale,
-          child: Opacity(opacity: opacity, child: child),
-        );
-      },
-    );
+    unawaited(_startRecording(force: true));
   }
 
   // ===========================================================================
@@ -1688,91 +1233,56 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
   @override
   void dispose() {
-    _log('DISPOSE');
+    _voiceChatActive = false;
 
     _recordingRequested = false;
 
     _speechSessionActive = false;
 
-    _speechSessionStartedAt = null;
-
     _recordingSessionId++;
 
     _aiAudioActuallyPlaying = false;
+
+    _isStartingSpeech = false;
+
+    _cancelTimers();
+
+    // -------------------------------------------------------------------------
+    // SPEECH
+    // -------------------------------------------------------------------------
 
     try {
       _speech.cancel();
     } catch (_) {}
 
-    _audioSubscription?.cancel();
+    // -------------------------------------------------------------------------
+    // AUDIO
+    // -------------------------------------------------------------------------
+
+    _audioSubscription.cancel();
 
     _audioPlayer.dispose();
 
+    // -------------------------------------------------------------------------
+    // ANIMATION
+    // -------------------------------------------------------------------------
+
     _recordingAnimationController.dispose();
 
-    super.dispose();
-  }
-}
+    // -------------------------------------------------------------------------
+    // VALUE NOTIFIERS
+    // -------------------------------------------------------------------------
 
-// =============================================================================
-// AI WAVE
-// =============================================================================
+    _voiceChatActiveNotifier.dispose();
 
-class AiWaveWidget extends StatefulWidget {
-  const AiWaveWidget({super.key});
+    _isSendingVoiceNotifier.dispose();
 
-  @override
-  State<AiWaveWidget> createState() => _AiWaveWidgetState();
-}
+    _userHasSpokenNotifier.dispose();
 
-class _AiWaveWidgetState extends State<AiWaveWidget>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
+    _soundLevelNotifier.dispose();
 
-  @override
-  void initState() {
-    super.initState();
-
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 850),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
+    _speechTextNotifier.dispose();
 
     super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: List.generate(14, (index) {
-            final progress = (_controller.value + (index * 0.09)) % 1.0;
-
-            final wave = (math.sin(progress * math.pi * 2) + 1) / 2;
-
-            final height = 7 + (wave * 28);
-
-            return Container(
-              width: 4,
-              height: height,
-              margin: const EdgeInsets.symmetric(horizontal: 2),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-              ),
-            );
-          }),
-        );
-      },
-    );
   }
 }

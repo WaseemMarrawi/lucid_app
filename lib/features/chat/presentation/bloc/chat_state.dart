@@ -35,7 +35,7 @@ class ChatState {
 }
 enum VoiceChatState {
   disable,
-  init,
+  // init,
   listening,
   loading,
   aiSpeaking,

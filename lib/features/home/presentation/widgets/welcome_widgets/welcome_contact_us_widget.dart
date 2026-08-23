@@ -26,11 +26,7 @@ class WelcomeContactUsWidget extends StatelessWidget {
     final whatsappNumber = AppVariables.user?.restaurant?.whatsappNumber;
     final telegramUrl = AppVariables.user?.restaurant?.telegramUrl;
 
-    print(facebookUrl);
-    print(facebookUrl);
-    print(instagramUrl);
-    print(whatsappNumber);
-    print(telegramUrl);
+
     final List<Widget> contactItems = [];
 
     if (_isValidUrl(facebookUrl)) {

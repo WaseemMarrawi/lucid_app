@@ -5,11 +5,14 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   animated_rating_stars
   flutter_sound
+  flutter_webrtc
+  record_linux
   url_launcher_linux
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
   jni
+  vad
 )
 
 set(PLUGIN_BUNDLED_LIBRARIES)

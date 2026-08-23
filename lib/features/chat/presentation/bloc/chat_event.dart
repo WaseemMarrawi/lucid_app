@@ -16,7 +16,7 @@ class SendVoiceEvent extends ChatEvent{
   SendVoiceEvent({required this.params});
 }
 class SentDisableEvent extends ChatEvent{}
-class SentInitEvent extends ChatEvent{}
+// class SentInitEvent extends ChatEvent{}
 class SentListenEvent extends ChatEvent{}
 class SentLoadingEvent extends ChatEvent{}
 class SentAiSpeakEvent extends ChatEvent{}

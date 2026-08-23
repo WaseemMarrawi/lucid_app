@@ -22,7 +22,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     on<SendVoiceEvent>(_sendVoice);
     on<SentDisableEvent>(_onSentDisable);
 
-    on<SentInitEvent>(_onSentInit);
+    // on<SentInitEvent>(_onSentInit);
 
     on<SentListenEvent>(_onSentListen);
 
@@ -142,16 +142,17 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     );
   }
 
-  void _onSentInit(
-      SentInitEvent event,
-      Emitter<ChatState> emit,
-      ) {
-    emit(
-      state.copyWith(
-        voiceChatState: VoiceChatState.init,
-      ),
-    );
-  }
+  // void _onSentInit(
+  //     SentInitEvent event,
+  //     Emitter<ChatState> emit,
+  //     )
+  // {
+  //   emit(
+  //     state.copyWith(
+  //       voiceChatState: VoiceChatState.init,
+  //     ),
+  //   );
+  // }
 
   void _onSentListen(
       SentListenEvent event,
@@ -206,7 +207,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       ResetAfterFinishVoiceEvent event,
       Emitter<ChatState> emit,
       ) {
-    emit(state.copyWith( voiceData: state.voiceData.resetData(),voiceChatState: VoiceChatState.init));
+    emit(state.copyWith( voiceData: state.voiceData.resetData(),voiceChatState: VoiceChatState.listening));
 
   }
 }
