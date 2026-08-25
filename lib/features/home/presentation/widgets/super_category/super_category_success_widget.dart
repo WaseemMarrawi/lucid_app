@@ -19,10 +19,10 @@ class SuperCategorySuccessWidget extends StatelessWidget {
         scrollDirection: Axis.horizontal,
 
         child: Container(
-          padding: EdgeInsets.symmetric(horizontal: 8,vertical: 12),
+          padding: EdgeInsets.symmetric(horizontal: 8,vertical: 8),
           decoration: BoxDecoration(
             color: context.cardColor,
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(5000),
             border: Border.all(color: context.primarySwatch.withValues(alpha: .3)),
           ),
 
