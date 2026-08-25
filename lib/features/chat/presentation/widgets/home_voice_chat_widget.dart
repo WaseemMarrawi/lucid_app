@@ -1288,7 +1288,6 @@
 // }
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -1360,11 +1359,15 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
   bool _recordingRequested = false;
 
+  bool _intentionalSpeechStop = false;
+
   // ===========================================================================
   // INTERNAL AUDIO STATE
   // ===========================================================================
 
   bool _aiAudioActuallyPlaying = false;
+
+  bool _aiInterruptedByUser = false;
 
   // ===========================================================================
   // SPEECH TEXT
@@ -1395,6 +1398,8 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
   static const Duration _speechPauseDuration = Duration(minutes: 30);
 
   static const Duration _speechListenDuration = Duration(minutes: 30);
+
+  static const Duration _backgroundRestartDelay = Duration(milliseconds: 220);
 
   // ===========================================================================
   // SESSION
@@ -1558,6 +1563,8 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     _isStartingSpeech = false;
 
     _restartScheduled = false;
+
+    _intentionalSpeechStop = false;
   }
 
   // ===========================================================================
@@ -1568,8 +1575,6 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     if (!mounted) {
       return;
     }
-
-    HapticFeedback.lightImpact();
 
     _voiceChatActive = true;
 
@@ -1598,8 +1603,6 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     if (!mounted) {
       return;
     }
-
-    HapticFeedback.lightImpact();
 
     _voiceChatActive = false;
 
@@ -1678,6 +1681,9 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     _recordingAnimationController.value = 0;
 
     _aiAudioActuallyPlaying = false;
+
+    _aiInterruptedByUser = false;
+
   }
 
   // ===========================================================================
@@ -1687,6 +1693,7 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
   Future<void> _waitForSpeechToFinish() async {
     try {
       if (_speech.isListening) {
+        _intentionalSpeechStop = true;
         await _speech.cancel();
       }
     } catch (_) {}
@@ -1704,18 +1711,23 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     }
 
     await Future<void>.delayed(const Duration(milliseconds: 250));
+
+    _intentionalSpeechStop = false;
   }
 
   // ===========================================================================
   // START RECORDING
   // ===========================================================================
 
-  Future<void> _startRecording({bool force = false}) async {
+  Future<void> _startRecording({
+    bool force = false,
+    bool backgroundForAi = false,
+  }) async {
     if (!mounted || !_voiceChatActive) {
       return;
     }
 
-    if (_isSendingVoice) {
+    if (_isSendingVoice && !backgroundForAi) {
       return;
     }
 
@@ -1731,7 +1743,7 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
     _isStartingSpeech = true;
 
-    _recordingRequested = true;
+    _recordingRequested = !backgroundForAi;
 
     _speechSessionActive = false;
 
@@ -1744,7 +1756,9 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
       // MICROPHONE PERMISSION
       // -----------------------------------------------------------------------
 
-      final permission = await Permission.microphone.request();
+      final permission = backgroundForAi
+          ? await Permission.microphone.status
+          : await Permission.microphone.request();
 
       if (!mounted || sessionId != _recordingSessionId) {
         return;
@@ -1755,7 +1769,9 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
         _speechSessionActive = false;
 
-        _chatBloc.add(SentFailedEvent());
+        if (!backgroundForAi) {
+          _chatBloc.add(SentFailedEvent());
+        }
 
         return;
       }
@@ -1789,7 +1805,9 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
           _speechSessionActive = false;
 
-          _chatBloc.add(SentFailedEvent());
+          if (!backgroundForAi) {
+            _chatBloc.add(SentFailedEvent());
+          }
 
           return;
         }
@@ -1798,10 +1816,11 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
       }
 
       // -----------------------------------------------------------------------
-      // ENSURE LISTENING STATE
+      // ENSURE FOREGROUND LISTENING STATE
       // -----------------------------------------------------------------------
 
-      if (_chatBloc.state.voiceChatState != VoiceChatState.listening) {
+      if (!backgroundForAi &&
+          _chatBloc.state.voiceChatState != VoiceChatState.listening) {
         _chatBloc.add(SentListenEvent());
 
         await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -1814,6 +1833,11 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
       // -----------------------------------------------------------------------
       // START STT
       // -----------------------------------------------------------------------
+
+      // During aiSpeaking this STT session is deliberately silent and invisible:
+      // it exists only to catch the first user word for barge-in. Timeouts from
+      // this session are handled by _onSpeechStatus/_onSpeechError and restarted
+      // without touching Bloc state, so the UI never blinks or enters failed.
 
       _speechSessionActive = true;
 
@@ -1841,6 +1865,12 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
       }
 
       _speechSessionActive = false;
+
+      if (backgroundForAi && _isAiBackgroundListeningAllowed) {
+        _scheduleAiBackgroundListeningRestart();
+      } else if (!backgroundForAi && _recordingRequested && !_isSendingVoice) {
+        _chatBloc.add(SentFailedEvent());
+      }
     } finally {
       _isStartingSpeech = false;
     }
@@ -1851,31 +1881,36 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
   // ===========================================================================
 
   Future<void> _startListeningForInterruption() async {
-    if (!mounted || !_voiceChatActive) {
+    if (!_isAiBackgroundListeningAllowed) {
       return;
     }
 
-    try {
-      final permission = await Permission.microphone.status;
-      if (!permission.isGranted) {
+    await _startRecording(force: true, backgroundForAi: true);
+  }
+
+  bool get _isAiBackgroundListeningAllowed {
+    return mounted &&
+        _voiceChatActive &&
+        !_aiInterruptedByUser &&
+        _chatBloc.state.voiceChatState == VoiceChatState.aiSpeaking;
+  }
+
+  void _scheduleAiBackgroundListeningRestart() {
+    if (_restartScheduled || !_isAiBackgroundListeningAllowed) {
+      return;
+    }
+
+    _restartScheduled = true;
+
+    Timer(_backgroundRestartDelay, () {
+      _restartScheduled = false;
+
+      if (!_isAiBackgroundListeningAllowed || _isStartingSpeech) {
         return;
       }
 
-      _speechSessionActive = true;
-
-      await _speech.listen(
-        listenOptions: stt.SpeechListenOptions(
-          localeId: Localizations.localeOf(context).toString(),
-          listenFor: _speechListenDuration,
-          pauseFor: _speechPauseDuration,
-          partialResults: true,
-          cancelOnError: false,
-          listenMode: stt.ListenMode.dictation,
-        ),
-        onSoundLevelChange: _onSoundLevelChange,
-        onResult: _onSpeechResult,
-      );
-    } catch (_) {}
+      unawaited(_startListeningForInterruption());
+    });
   }
 
   // ===========================================================================
@@ -1895,6 +1930,13 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
     if (status == 'done' || status == 'notListening') {
       _speechSessionActive = false;
+
+      // Background STT sessions commonly end with done/notListening even when
+      // nothing is wrong. While AI audio is speaking, that is not a user-visible
+      // failure; immediately cycle the recognizer so interruption remains armed.
+      if (!_intentionalSpeechStop && _isAiBackgroundListeningAllowed) {
+        _scheduleAiBackgroundListeningRestart();
+      }
     }
   }
 
@@ -1912,6 +1954,14 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     final errorText = error.toString();
 
     if (errorText.contains('error_busy')) {
+      if (_isAiBackgroundListeningAllowed) {
+        _scheduleAiBackgroundListeningRestart();
+      }
+      return;
+    }
+
+    if (_isAiBackgroundListeningAllowed) {
+      _scheduleAiBackgroundListeningRestart();
       return;
     }
 
@@ -2032,11 +2082,13 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
       return;
     }
 
-    // 1. Stop AI Audio immediately
+    // 1. Stop AI audio immediately. The stop Future is intentionally not
+    // awaited before SentListenEvent, because barge-in must feel instant even if
+    // the platform audio session takes a few frames to fully release.
+    _aiInterruptedByUser = true;
+
     _aiAudioActuallyPlaying = false;
-    try {
-      await _audioPlayer.stop();
-    } catch (_) {}
+    unawaited(_audioPlayer.stop().catchError((_) {}));
 
     // 2. Switch Bloc state to listening
     _chatBloc.add(SentListenEvent());
@@ -2044,10 +2096,15 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     // 3. Update internal user speech state
     _isSendingVoice = false;
     _userHasSpoken = true;
-    _speechTextBeforeCurrentSession = '';
     _lastRecognizedText = recognizedText;
     _speechText = recognizedText;
     _lastUserSpeechAt = DateTime.now();
+
+    _speechSessionActive = _speech.isListening;
+
+    _recordingRequested = true;
+
+    _speechTextBeforeCurrentSession = recognizedText;
 
     // 4. Start silence timer to send user message when done talking
     _startSilenceTimer();
@@ -2124,9 +2181,12 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
     try {
       if (_speech.isListening) {
+        _intentionalSpeechStop = true;
         await _speech.stop();
       }
     } catch (_) {}
+
+    _intentionalSpeechStop = false;
 
     if (!mounted) {
       return;
@@ -2205,6 +2265,8 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
       _aiAudioActuallyPlaying = false;
 
+      _aiInterruptedByUser = false;
+
       _recordingRequested = false;
 
       _speechSessionActive = false;
@@ -2221,6 +2283,7 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
       try {
         if (_speech.isListening) {
+          _intentionalSpeechStop = true;
           await _speech.cancel();
         }
       } catch (_) {}
@@ -2259,7 +2322,10 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
       unawaited(_audioPlayer.play());
 
-      // Start listening in background so if user speaks, we can interrupt
+      // Keep STT alive while AI audio plays. This is intentionally decoupled
+      // from UI state: the Bloc remains aiSpeaking unless _onSpeechResult sees
+      // actual words, at which point _handleAiInterruption stops audio and moves
+      // to listening.
       await _startListeningForInterruption();
     } catch (_) {
       if (!mounted) {
@@ -2293,6 +2359,8 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
     _aiAudioActuallyPlaying = false;
 
+    _aiInterruptedByUser = false;
+
     _recordingRequested = false;
 
     _speechSessionActive = false;
@@ -2317,6 +2385,7 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
     try {
       if (_speech.isListening) {
+        _intentionalSpeechStop = true;
         await _speech.cancel();
       }
     } catch (_) {}
@@ -2368,6 +2437,8 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     // -------------------------------------------------------------------------
 
     _aiAudioActuallyPlaying = false;
+
+    _aiInterruptedByUser = false;
 
     _isSendingVoice = false;
 
@@ -2574,8 +2645,6 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
       return;
     }
 
-    HapticFeedback.lightImpact();
-
     _isSendingVoice = false;
 
     _recordingRequested = true;
@@ -2608,6 +2677,8 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     _recordingSessionId++;
 
     _aiAudioActuallyPlaying = false;
+
+    _aiInterruptedByUser = false;
 
     _isStartingSpeech = false;
 
