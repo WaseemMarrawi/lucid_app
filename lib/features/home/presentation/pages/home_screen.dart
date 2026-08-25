@@ -2,6 +2,8 @@ import 'package:add_to_cart_animation/add_to_cart_animation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+
 import 'package:restaurants_menu/common/design/design.dart';
 import 'package:restaurants_menu/common/helper/helper.dart';
 import 'package:restaurants_menu/core/di/injection.dart';
@@ -9,6 +11,7 @@ import 'package:restaurants_menu/features/cart/presentation/bloc/cart_bloc.dart'
 import 'package:restaurants_menu/features/home/presentation/widgets/home_widgets/home_app_bar_widget.dart';
 import 'package:restaurants_menu/features/product/presentation/bloc/product_bloc.dart';
 import 'package:restaurants_menu/router/app_router.dart';
+
 import '../../../../common/design/src/theme/theme/theme_collection.dart';
 import '../../../../common/extensions/src/context_extensions.dart';
 import '../../../chat/presentation/widgets/home_voice_chat_widget.dart';
@@ -29,39 +32,42 @@ class _HomeScreenState extends State<HomeScreen> {
   final cartKey = GlobalKey<CartIconKey>();
   Function(GlobalKey)? runAddToCartAnimation;
 
-  final Map<int, GlobalKey> categoryKeys = {};
+  // استخدام ItemScrollController الخاص بمكتبة scrollable_positioned_list
+  final ItemScrollController itemScrollController = ItemScrollController();
 
+  Future<void> _scrollToCategory(int categoryId) async {
+    final list = productBloc.state.categoryProductList;
+    if (list.isEmpty) return;
 
-  Future<void> _scrollToCategory(int id) async {
-    final key = categoryKeys[id];
+    // البحث عن الـ index الخاص بالقسم المختار
+    final targetIndex = list.indexWhere((item) => item.$1.id == categoryId);
 
-    if (key?.currentContext == null) return;
-
-    await Scrollable.ensureVisible(
-      key!.currentContext!,
-      duration: const Duration(milliseconds: 350),
-      curve: Curves.easeInOut,
-      alignment: 0,
-    );
+    if (targetIndex != -1 && itemScrollController.isAttached) {
+      itemScrollController.scrollTo(
+        index: targetIndex,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   @override
   void initState() {
+    super.initState();
     productBloc = getIt<ProductBloc>()
       ..add(GetAllProductEvent())
       ..add(InitSelectedSuperCategoryEvent());
     cartBloc = getIt<CartBloc>()..add(InitSelectedServices());
+
     SystemChrome.setSystemUIOverlayStyle(
       SystemUiOverlayStyle(
         statusBarColor: ThemeCollection.lightTheme.cardColor,
         statusBarIconBrightness: Brightness.dark,
         systemNavigationBarColor:
-            ThemeCollection.lightTheme.scaffoldBackgroundColor,
+        ThemeCollection.lightTheme.scaffoldBackgroundColor,
         systemNavigationBarIconBrightness: Brightness.dark,
       ),
     );
-
-    super.initState();
   }
 
   @override
@@ -77,7 +83,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-
     return AddToCartAnimation(
       cartKey: cartKey,
       createAddToCartAnimation: (fn) {
@@ -95,10 +100,9 @@ class _HomeScreenState extends State<HomeScreen> {
         body: BlocConsumer<ProductBloc, ProductState>(
           bloc: productBloc,
           listenWhen: (previous, current) =>
-              previous.selectedCategory?.id != current.selectedCategory?.id,
+          previous.selectedCategory?.id != current.selectedCategory?.id,
           listener: (_, state) {
             final category = state.selectedCategory;
-
             if (category == null) return;
 
             WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -108,27 +112,20 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (context, state) {
             return Container(
               padding: EdgeInsets.only(bottom: context.navigationBarHeight),
-              child:
-              Column(
+              child: Column(
                 children: [
                   const Padding(padding: EdgeInsets.symmetric(vertical: 12)),
-
                   SuperCategoryStatusWidget(productBloc: productBloc),
                   Space.vM2,
                   CategoryStatusWidget(productBloc: productBloc),
                   Space.vM2,
-
                   Expanded(
-                    child: CustomScrollView(
-                      slivers: [
-                        HomeProductGridStatusWidget(
-                          productBloc: productBloc,
-                          cartBloc: cartBloc,
-                          runAddToCartAnimation: runAddToCartAnimation,
-                          animationReady: animationReady,
-                          categoryKeys: categoryKeys,
-                        ),
-                      ],
+                    child: HomeProductGridStatusWidget(
+                      productBloc: productBloc,
+                      cartBloc: cartBloc,
+                      runAddToCartAnimation: runAddToCartAnimation,
+                      animationReady: animationReady,
+                      itemScrollController: itemScrollController,
                     ),
                   ),
                 ],
@@ -137,26 +134,21 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         ),
         floatingActionButton:
-        AppVariables.user?.restaurant?.aiAudioChatEnabled==true?
-        HomeVoiceChatWidget()
-            :
-        AppVariables.user?.restaurant?.aiChatEnabled==true? FloatingActionButton(
+        AppVariables.user?.restaurant?.aiAudioChatEnabled == true
+            ? HomeVoiceChatWidget()
+            : AppVariables.user?.restaurant?.aiChatEnabled == true
+            ? FloatingActionButton(
           onPressed: () {
             context.pushNamed(RouteName.message);
           },
           child: Assets.images.png.robot.image(
-            height: 24,color: context.cardColor,
-          )
-        ):null,
+            height: 24,
+            color: context.cardColor,
+          ),
+        )
+            : null,
       ),
     );
   }
 }
 
-class BrandModel {
-  final int id;
-  final String nameEn;
-  final String nameAr;
-
-  BrandModel({required this.id, required this.nameEn, required this.nameAr});
-}

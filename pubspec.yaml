@@ -75,6 +75,7 @@ dependencies:
   record: ^6.2.1
   flutter_webrtc: ^1.6.0
   vad: ^0.0.8
+  scrollable_positioned_list: ^0.3.8
 
 
 dev_dependencies:

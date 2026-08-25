@@ -47,9 +47,9 @@ class SuperCategoryWidget extends StatelessWidget {
                   ? Colors.transparent
                   : context.primarySwatch,
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: context.primarySwatch
-              ),
+              // border: Border.all(
+              //   color: context.primarySwatch
+              // ),
 
             ),
             child: Text(
