@@ -1287,6 +1287,7 @@
 //   }
 // }
 import 'dart:async';
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:just_audio/just_audio.dart';
@@ -1329,7 +1330,7 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
   // SUBSCRIPTIONS
   // ===========================================================================
 
-  late final StreamSubscription<PlayerState> _audioSubscription;
+  StreamSubscription<PlayerState>? _audioSubscription;
 
   // ===========================================================================
   // REACTIVE UI STATE
@@ -1484,7 +1485,7 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     // INITIALIZATION
     // -------------------------------------------------------------------------
 
-    _initializeAudio();
+    unawaited(_initializeAudio());
 
     unawaited(_initializeSpeech());
   }
@@ -1514,7 +1515,27 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
   // AUDIO INITIALIZE
   // ===========================================================================
 
-  void _initializeAudio() {
+  Future<void> _initializeAudio() async {
+    final session = await AudioSession.instance;
+
+    await session.configure(
+      const AudioSessionConfiguration(
+        avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+        avAudioSessionCategoryOptions:
+            AVAudioSessionCategoryOptions.allowBluetooth |
+                AVAudioSessionCategoryOptions.defaultToSpeaker |
+                AVAudioSessionCategoryOptions.mixWithOthers,
+        androidAudioAttributes: AndroidAudioAttributes(
+          contentType: AndroidAudioContentType.speech,
+          usage: AndroidAudioUsage.voiceCommunication,
+        ),
+        androidAudioFocusGainType:
+            AndroidAudioFocusGainType.gainTransientMayDuck,
+      ),
+    );
+
+    await session.setActive(true);
+
     _audioSubscription = _audioPlayer.playerStateStream.listen((playerState) {
       if (!mounted) {
         return;
@@ -2320,6 +2341,9 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
       // PLAY AI AUDIO & START LISTENING FOR INTERRUPTION
       // -----------------------------------------------------------------------
 
+      final session = await AudioSession.instance;
+      await session.setActive(true);
+
       unawaited(_audioPlayer.play());
 
       // Keep STT alive while AI audio plays. This is intentionally decoupled
@@ -2696,7 +2720,7 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     // AUDIO
     // -------------------------------------------------------------------------
 
-    _audioSubscription.cancel();
+    _audioSubscription?.cancel();
 
     _audioPlayer.dispose();
 
