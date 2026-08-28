@@ -1287,11 +1287,14 @@
 //   }
 // }
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:record/record.dart';
 import 'package:restaurants_menu/common/extensions/extensions.dart';
 import 'package:restaurants_menu/features/chat/domin/use_cases/send_voice_use_case.dart';
 import 'package:restaurants_menu/features/chat/presentation/bloc/chat_bloc.dart';
@@ -1320,6 +1323,8 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
   late final stt.SpeechToText _speech;
 
+  late final AudioRecorder _bargeInRecorder;
+
   late final AudioPlayer _audioPlayer;
 
   late final ChatBloc _chatBloc;
@@ -1331,6 +1336,10 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
   // ===========================================================================
 
   StreamSubscription<PlayerState>? _audioSubscription;
+
+  StreamSubscription<Amplitude>? _bargeInAmplitudeSubscription;
+
+  StreamSubscription<Uint8List>? _bargeInAudioSubscription;
 
   // ===========================================================================
   // REACTIVE UI STATE
@@ -1356,11 +1365,7 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
   bool _speechSessionActive = false;
 
-  bool _restartScheduled = false;
-
   bool _recordingRequested = false;
-
-  bool _intentionalSpeechStop = false;
 
   // ===========================================================================
   // INTERNAL AUDIO STATE
@@ -1369,6 +1374,14 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
   bool _aiAudioActuallyPlaying = false;
 
   bool _aiInterruptedByUser = false;
+
+  bool _bargeInMonitorActive = false;
+
+  bool _bargeInTriggered = false;
+
+  double _bargeInNoiseFloorDb = -45;
+
+  DateTime? _bargeInSpeechStartedAt;
 
   // ===========================================================================
   // SPEECH TEXT
@@ -1400,7 +1413,13 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
   static const Duration _speechListenDuration = Duration(minutes: 30);
 
-  static const Duration _backgroundRestartDelay = Duration(milliseconds: 220);
+  static const Duration _bargeInPollInterval = Duration(milliseconds: 80);
+
+  static const Duration _bargeInSpeechHoldDuration = Duration(milliseconds: 240);
+
+  static const double _bargeInMinSpeechDb = -35;
+
+  static const double _bargeInNoiseFloorMarginDb = 14;
 
   // ===========================================================================
   // SESSION
@@ -1455,6 +1474,8 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     // -------------------------------------------------------------------------
 
     _speech = stt.SpeechToText();
+
+    _bargeInRecorder = AudioRecorder();
 
     _audioPlayer = AudioPlayer();
 
@@ -1521,6 +1542,7 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     await session.configure(
       const AudioSessionConfiguration(
         avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+        avAudioSessionMode: AVAudioSessionMode.voiceChat,
         avAudioSessionCategoryOptions:
             AVAudioSessionCategoryOptions.allowBluetooth |
                 AVAudioSessionCategoryOptions.defaultToSpeaker |
@@ -1529,8 +1551,8 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
           contentType: AndroidAudioContentType.speech,
           usage: AndroidAudioUsage.voiceCommunication,
         ),
-        androidAudioFocusGainType:
-            AndroidAudioFocusGainType.gainTransientMayDuck,
+        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+        androidWillPauseWhenDucked: false,
       ),
     );
 
@@ -1583,9 +1605,7 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
     _isStartingSpeech = false;
 
-    _restartScheduled = false;
-
-    _intentionalSpeechStop = false;
+    _bargeInTriggered = false;
   }
 
   // ===========================================================================
@@ -1636,6 +1656,8 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     // -------------------------------------------------------------------------
 
     try {
+      await _stopBargeInMonitor();
+
       if (_speech.isListening) {
         await _speech.cancel();
       }
@@ -1671,7 +1693,6 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
     _silenceTimer = null;
 
-    _restartScheduled = false;
   }
 
   // ===========================================================================
@@ -1705,6 +1726,10 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
     _aiInterruptedByUser = false;
 
+    _bargeInTriggered = false;
+
+    _bargeInSpeechStartedAt = null;
+
   }
 
   // ===========================================================================
@@ -1714,7 +1739,6 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
   Future<void> _waitForSpeechToFinish() async {
     try {
       if (_speech.isListening) {
-        _intentionalSpeechStop = true;
         await _speech.cancel();
       }
     } catch (_) {}
@@ -1733,7 +1757,6 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
     await Future<void>.delayed(const Duration(milliseconds: 250));
 
-    _intentionalSpeechStop = false;
   }
 
   // ===========================================================================
@@ -1742,13 +1765,12 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
   Future<void> _startRecording({
     bool force = false,
-    bool backgroundForAi = false,
   }) async {
     if (!mounted || !_voiceChatActive) {
       return;
     }
 
-    if (_isSendingVoice && !backgroundForAi) {
+    if (_isSendingVoice) {
       return;
     }
 
@@ -1764,7 +1786,7 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
     _isStartingSpeech = true;
 
-    _recordingRequested = !backgroundForAi;
+    _recordingRequested = true;
 
     _speechSessionActive = false;
 
@@ -1777,9 +1799,9 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
       // MICROPHONE PERMISSION
       // -----------------------------------------------------------------------
 
-      final permission = backgroundForAi
-          ? await Permission.microphone.status
-          : await Permission.microphone.request();
+      await _stopBargeInMonitor();
+
+      final permission = await Permission.microphone.request();
 
       if (!mounted || sessionId != _recordingSessionId) {
         return;
@@ -1790,9 +1812,7 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
         _speechSessionActive = false;
 
-        if (!backgroundForAi) {
-          _chatBloc.add(SentFailedEvent());
-        }
+        _chatBloc.add(SentFailedEvent());
 
         return;
       }
@@ -1840,8 +1860,7 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
       // ENSURE FOREGROUND LISTENING STATE
       // -----------------------------------------------------------------------
 
-      if (!backgroundForAi &&
-          _chatBloc.state.voiceChatState != VoiceChatState.listening) {
+      if (_chatBloc.state.voiceChatState != VoiceChatState.listening) {
         _chatBloc.add(SentListenEvent());
 
         await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -1854,11 +1873,6 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
       // -----------------------------------------------------------------------
       // START STT
       // -----------------------------------------------------------------------
-
-      // During aiSpeaking this STT session is deliberately silent and invisible:
-      // it exists only to catch the first user word for barge-in. Timeouts from
-      // this session are handled by _onSpeechStatus/_onSpeechError and restarted
-      // without touching Bloc state, so the UI never blinks or enters failed.
 
       _speechSessionActive = true;
 
@@ -1887,9 +1901,7 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
       _speechSessionActive = false;
 
-      if (backgroundForAi && _isAiBackgroundListeningAllowed) {
-        _scheduleAiBackgroundListeningRestart();
-      } else if (!backgroundForAi && _recordingRequested && !_isSendingVoice) {
+      if (_recordingRequested && !_isSendingVoice) {
         _chatBloc.add(SentFailedEvent());
       }
     } finally {
@@ -1898,7 +1910,7 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
   }
 
   // ===========================================================================
-  // START LISTENING FOR INTERRUPTION (DURING AI SPEAKING)
+  // START MONITORING FOR INTERRUPTION (DURING AI SPEAKING)
   // ===========================================================================
 
   Future<void> _startListeningForInterruption() async {
@@ -1906,7 +1918,7 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
       return;
     }
 
-    await _startRecording(force: true, backgroundForAi: true);
+    await _startBargeInMonitor();
   }
 
   bool get _isAiBackgroundListeningAllowed {
@@ -1916,22 +1928,111 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
         _chatBloc.state.voiceChatState == VoiceChatState.aiSpeaking;
   }
 
-  void _scheduleAiBackgroundListeningRestart() {
-    if (_restartScheduled || !_isAiBackgroundListeningAllowed) {
+  Future<void> _startBargeInMonitor() async {
+    if (_bargeInMonitorActive || _bargeInTriggered) {
       return;
     }
 
-    _restartScheduled = true;
+    final sessionId = _recordingSessionId;
 
-    Timer(_backgroundRestartDelay, () {
-      _restartScheduled = false;
+    try {
+      final permission = await Permission.microphone.status;
 
-      if (!_isAiBackgroundListeningAllowed || _isStartingSpeech) {
+      if (!permission.isGranted ||
+          !mounted ||
+          sessionId != _recordingSessionId ||
+          !_isAiBackgroundListeningAllowed) {
         return;
       }
 
-      unawaited(_startListeningForInterruption());
-    });
+      _bargeInNoiseFloorDb = -45;
+      _bargeInSpeechStartedAt = null;
+      _bargeInMonitorActive = true;
+
+      final stream = await _bargeInRecorder.startStream(
+        const RecordConfig(
+          encoder: AudioEncoder.pcm16bits,
+          sampleRate: 16000,
+          numChannels: 1,
+          autoGain: false,
+          echoCancel: true,
+          noiseSuppress: true,
+        ),
+      );
+
+      _bargeInAudioSubscription = stream.listen((_) {});
+
+      _bargeInAmplitudeSubscription =
+          _bargeInRecorder.onAmplitudeChanged(_bargeInPollInterval).listen(
+        (amplitude) => _onBargeInAmplitude(amplitude, sessionId),
+        onError: (_) {
+          if (_isAiBackgroundListeningAllowed) {
+            unawaited(_stopBargeInMonitor());
+          }
+        },
+      );
+    } catch (_) {
+      _bargeInMonitorActive = false;
+    }
+  }
+
+  void _onBargeInAmplitude(Amplitude amplitude, int sessionId) {
+    if (!mounted ||
+        sessionId != _recordingSessionId ||
+        !_isAiBackgroundListeningAllowed ||
+        _bargeInTriggered) {
+      return;
+    }
+
+    final db = amplitude.current;
+
+    if (db.isInfinite || db.isNaN) {
+      return;
+    }
+
+    if (db < _bargeInNoiseFloorDb) {
+      _bargeInNoiseFloorDb = db;
+    } else {
+      _bargeInNoiseFloorDb = (_bargeInNoiseFloorDb * 0.96) + (db * 0.04);
+    }
+
+    final speechLike = db >= _bargeInMinSpeechDb &&
+        db >= _bargeInNoiseFloorDb + _bargeInNoiseFloorMarginDb;
+
+    if (!speechLike) {
+      _bargeInSpeechStartedAt = null;
+      return;
+    }
+
+    final now = DateTime.now();
+    _bargeInSpeechStartedAt ??= now;
+
+    if (now.difference(_bargeInSpeechStartedAt!) < _bargeInSpeechHoldDuration) {
+      return;
+    }
+
+    _bargeInTriggered = true;
+    unawaited(_handleAiInterruption());
+  }
+
+  Future<void> _stopBargeInMonitor() async {
+    _bargeInSpeechStartedAt = null;
+
+    await _bargeInAmplitudeSubscription?.cancel();
+    _bargeInAmplitudeSubscription = null;
+
+    await _bargeInAudioSubscription?.cancel();
+    _bargeInAudioSubscription = null;
+
+    if (!_bargeInMonitorActive) {
+      return;
+    }
+
+    _bargeInMonitorActive = false;
+
+    try {
+      await _bargeInRecorder.stop();
+    } catch (_) {}
   }
 
   // ===========================================================================
@@ -1952,12 +2053,7 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     if (status == 'done' || status == 'notListening') {
       _speechSessionActive = false;
 
-      // Background STT sessions commonly end with done/notListening even when
-      // nothing is wrong. While AI audio is speaking, that is not a user-visible
-      // failure; immediately cycle the recognizer so interruption remains armed.
-      if (!_intentionalSpeechStop && _isAiBackgroundListeningAllowed) {
-        _scheduleAiBackgroundListeningRestart();
-      }
+      return;
     }
   }
 
@@ -1975,14 +2071,10 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     final errorText = error.toString();
 
     if (errorText.contains('error_busy')) {
-      if (_isAiBackgroundListeningAllowed) {
-        _scheduleAiBackgroundListeningRestart();
-      }
       return;
     }
 
     if (_isAiBackgroundListeningAllowed) {
-      _scheduleAiBackgroundListeningRestart();
       return;
     }
 
@@ -2061,7 +2153,6 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     // -------------------------------------------------------------------------
 
     if (_chatBloc.state.voiceChatState == VoiceChatState.aiSpeaking) {
-      unawaited(_handleAiInterruption(current));
       return;
     }
 
@@ -2098,7 +2189,7 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
   // HANDLE AI INTERRUPTION
   // ===========================================================================
 
-  Future<void> _handleAiInterruption(String recognizedText) async {
+  Future<void> _handleAiInterruption() async {
     if (!mounted || !_voiceChatActive) {
       return;
     }
@@ -2110,25 +2201,21 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
     _aiAudioActuallyPlaying = false;
     unawaited(_audioPlayer.stop().catchError((_) {}));
+    await _stopBargeInMonitor();
 
     // 2. Switch Bloc state to listening
     _chatBloc.add(SentListenEvent());
 
-    // 3. Update internal user speech state
+    // 3. Start the foreground recognizer immediately after playback stops.
     _isSendingVoice = false;
-    _userHasSpoken = true;
-    _lastRecognizedText = recognizedText;
-    _speechText = recognizedText;
-    _lastUserSpeechAt = DateTime.now();
-
-    _speechSessionActive = _speech.isListening;
-
     _recordingRequested = true;
+    _speechSessionActive = false;
+    _userHasSpoken = false;
+    _speechText = '';
+    _lastRecognizedText = '';
+    _speechTextBeforeCurrentSession = '';
 
-    _speechTextBeforeCurrentSession = recognizedText;
-
-    // 4. Start silence timer to send user message when done talking
-    _startSilenceTimer();
+    await _startRecording(force: true);
   }
 
   // ===========================================================================
@@ -2202,12 +2289,9 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
     try {
       if (_speech.isListening) {
-        _intentionalSpeechStop = true;
         await _speech.stop();
       }
     } catch (_) {}
-
-    _intentionalSpeechStop = false;
 
     if (!mounted) {
       return;
@@ -2288,13 +2372,13 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
       _aiInterruptedByUser = false;
 
+      _bargeInTriggered = false;
+
       _recordingRequested = false;
 
       _speechSessionActive = false;
 
       _isStartingSpeech = false;
-
-      _restartScheduled = false;
 
       _recordingSessionId++;
 
@@ -2303,8 +2387,9 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
       // -----------------------------------------------------------------------
 
       try {
+        await _stopBargeInMonitor();
+
         if (_speech.isListening) {
-          _intentionalSpeechStop = true;
           await _speech.cancel();
         }
       } catch (_) {}
@@ -2346,10 +2431,8 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
       unawaited(_audioPlayer.play());
 
-      // Keep STT alive while AI audio plays. This is intentionally decoupled
-      // from UI state: the Bloc remains aiSpeaking unless _onSpeechResult sees
-      // actual words, at which point _handleAiInterruption stops audio and moves
-      // to listening.
+      // The hidden barge-in monitor uses raw microphone capture instead of STT,
+      // so platform speech recognition cannot steal audio focus from playback.
       await _startListeningForInterruption();
     } catch (_) {
       if (!mounted) {
@@ -2385,13 +2468,13 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
     _aiInterruptedByUser = false;
 
+    _bargeInTriggered = false;
+
     _recordingRequested = false;
 
     _speechSessionActive = false;
 
     _isStartingSpeech = false;
-
-    _restartScheduled = false;
 
     _recordingSessionId++;
 
@@ -2400,6 +2483,8 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     // -------------------------------------------------------------------------
 
     try {
+      await _stopBargeInMonitor();
+
       await _audioPlayer.stop();
     } catch (_) {}
 
@@ -2409,8 +2494,7 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
     try {
       if (_speech.isListening) {
-        _intentionalSpeechStop = true;
-        await _speech.cancel();
+          await _speech.cancel();
       }
     } catch (_) {}
 
@@ -2464,6 +2548,8 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
     _aiInterruptedByUser = false;
 
+    _bargeInTriggered = false;
+
     _isSendingVoice = false;
 
     _recordingRequested = true;
@@ -2471,8 +2557,6 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     _speechSessionActive = false;
 
     _isStartingSpeech = false;
-
-    _restartScheduled = false;
 
     // -------------------------------------------------------------------------
     // RESET USER SESSION
@@ -2495,6 +2579,8 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     // -------------------------------------------------------------------------
 
     await _waitForSpeechToFinish();
+
+    await _stopBargeInMonitor();
 
     if (!mounted || !_voiceChatActive) {
       return;
@@ -2704,6 +2790,8 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
     _aiInterruptedByUser = false;
 
+    _bargeInTriggered = false;
+
     _isStartingSpeech = false;
 
     _cancelTimers();
@@ -2711,6 +2799,10 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     // -------------------------------------------------------------------------
     // SPEECH
     // -------------------------------------------------------------------------
+
+    try {
+      unawaited(_bargeInRecorder.dispose());
+    } catch (_) {}
 
     try {
       _speech.cancel();
