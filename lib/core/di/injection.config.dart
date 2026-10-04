@@ -9,6 +9,7 @@
 // coverage:ignore-file
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
+
 import 'package:dio/dio.dart' as _i361;
 import 'package:get_it/get_it.dart' as _i174;
 import 'package:hydrated_bloc/hydrated_bloc.dart' as _i67;
@@ -47,7 +48,7 @@ import '../../features/chat/data/repositories/chat_repositories_imp.dart'
     as _i712;
 import '../../features/chat/domin/repositories/chat_repositories.dart' as _i72;
 import '../../features/chat/domin/use_cases/send_message_use_case.dart'
-    as _i837;
+    as _i838;
 import '../../features/chat/domin/use_cases/send_voice_use_case.dart' as _i493;
 import '../../features/chat/presentation/bloc/chat_bloc.dart' as _i65;
 import '../../features/product/data/data_source/product_remote_data.dart'
@@ -236,8 +237,8 @@ Future<_i174.GetIt> $initGetIt(
       repositories: gh<_i869.ProductRepositories>(),
     ),
   );
-  gh.lazySingleton<_i837.SendMessageUseCase>(
-    () => _i837.SendMessageUseCase(repositories: gh<_i72.ChatRepositories>()),
+  gh.lazySingleton<_i838.SendMessageUseCase>(
+    () => _i838.SendMessageUseCase(repositories: gh<_i72.ChatRepositories>()),
   );
   gh.lazySingleton<_i493.SendVoiceUseCase>(
     () => _i493.SendVoiceUseCase(repositories: gh<_i72.ChatRepositories>()),
@@ -258,7 +259,7 @@ Future<_i174.GetIt> $initGetIt(
   );
   gh.factory<_i65.ChatBloc>(
     () => _i65.ChatBloc(
-      gh<_i837.SendMessageUseCase>(),
+      gh<_i838.SendMessageUseCase>(),
       gh<_i493.SendVoiceUseCase>(),
     ),
   );

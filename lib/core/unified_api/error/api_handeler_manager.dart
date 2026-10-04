@@ -31,4 +31,16 @@ mixin HandlingApiManager {
       rethrow;
     }
   }
+
+  Stream<Either<Failure, T>> wrapHandlingExceptionStream<T>({
+    required Stream<T> Function() tryCall,
+  }) async* {
+    try {
+      await for (final item in tryCall()) {
+        yield Right(item);
+      }
+    } catch (e) {
+      yield Left(ErrorHandler.handle(e).failure);
+    }
+  }
 }

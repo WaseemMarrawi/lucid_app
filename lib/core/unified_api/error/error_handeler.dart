@@ -15,55 +15,64 @@ import 'failure.dart';
 mixin HandlingException {
   Future<Either<Failure, T>> wrapHandlingException<T>(
       {required Future<T> Function() tryCall,
-      })
-  async {
-
+      }) async {
     try {
       final result = await tryCall();
       // on succes
       return Right(result);
     } catch (e) {
-      return Left(ErrorHandler.handle(e).failure);
+      return Left(ErrorHandler
+          .handle(e)
+          .failure);
     }
     // final result = await fuction();
     // return Right(jsonConvert(result.data));
 
 
-
-
   }
 
-  // Stream<Either<Failure, T>> wrapHandlingExceptionStream<T>(
-  //     {required Stream<T> Function() tryCall})
-  // {
-  //   final controller = StreamController<Either<Failure,T>>();
-  //
-  //   tryCall.listen(
-  //         (response) {
-  //       print('repositoreis response $response');
-  //       controller.add(right(response));
-  //
-  //     },
-  //     onError: (e) {
-  //       print('repositoreis on error $e');
-  //       controller.add(left(e));
-  //       return Left(ErrorHandler.handle(e).failure);
-  //
-  //     },
-  //     cancelOnError: true,
-  //   );
-  //
-  //   return controller.stream;
-  //
-  //
-  //
-  // }
-
+  Stream<Either<Failure, T>> wrapHandlingExceptionStream<T>({
+    required Stream<T> Function() tryCall,
+  }) async* {
+    try {
+      await for (final item in tryCall()) {
+        yield Right(item);
+      }
+    } catch (e) {
+      // هنا نعتمد على ErrorHandler الخاص بمشروعك
+      yield Left(ErrorHandler
+          .handle(e)
+          .failure);
+    }
   }
 
+// Stream<Either<Failure, T>> wrapHandlingExceptionStream<T>(
+//     {required Stream<T> Function() tryCall})
+// {
+//   final controller = StreamController<Either<Failure,T>>();
+//
+//   tryCall.listen(
+//         (response) {
+//       print('repositoreis response $response');
+//       controller.add(right(response));
+//
+//     },
+//     onError: (e) {
+//       print('repositoreis on error $e');
+//       controller.add(left(e));
+//       return Left(ErrorHandler.handle(e).failure);
+//
+//     },
+//     cancelOnError: true,
+//   );
+//
+//   return controller.stream;
+//
+//
+//
+// }
 
-
-
+}
 
 
 class ErrorHandler implements Exception {
@@ -75,7 +84,6 @@ class ErrorHandler implements Exception {
       failure = _handleError(error);
     }
     else {
-
       failure = ServerFailure(
           message: error.toString(),
           statusCode: ResponseCode.BAD_REQUEST_Server);
@@ -123,12 +131,14 @@ class ErrorHandler implements Exception {
             return UserNotAllowedFailure(message: AppConstants.notAllowed.tr());
           case ResponseCode.Bad_Content:
             return ServerFailure(
-                message: ErrorMessageModel.fromJson(error.response?.data)
+                message: ErrorMessageModel
+                    .fromJson(error.response?.data)
                     .statusMessage,
                 statusCode: ResponseCode.Bad_Content);
           case ResponseCode.BAD_REQUEST_Server:
             return ServerFailure(
-                message: ErrorMessageModel.fromJson(error.response?.data)
+                message: ErrorMessageModel
+                    .fromJson(error.response?.data)
                     .statusMessage,
                 statusCode: ResponseCode.BAD_REQUEST_Server);
           default:
@@ -136,11 +146,14 @@ class ErrorHandler implements Exception {
                 message: error.response?.data is! Map
                     ? ResponseMessage.INTERNAL_SERVER_ERROR.tr()
                     : error.response?.data["errors"]?.toString() ??
-                        error.response?.data["message"]?.toString() ??
-                        '',
+                    error.response?.data["message"]?.toString() ??
+                    '',
                 statusCode:
-                    error.response?.statusCode ?? ResponseCode.BAD_REQUEST);
+                error.response?.statusCode ?? ResponseCode.BAD_REQUEST);
         }
+      case DioExceptionType.transformTimeout:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
   }
 }
@@ -206,7 +219,7 @@ extension DataSourceExtension on DataSource {
             message: ResponseMessage.DEFAULT.tr());
       case DataSource.DELETED:
         return ServerFailure(message: ResponseMessage.SUCCESS.tr(),
-        statusCode: ResponseCode.DELETED);
+            statusCode: ResponseCode.DELETED);
     }
   }
 }
@@ -224,7 +237,7 @@ class ResponseCode {
   static const int BLOCKED = 420; // failure,blocked
   static const int Bad_Content = 422; // failure, Bad_Content
   static const int BAD_REQUEST_Server =
-      402; // ServerFailure, API rejected request
+  402; // ServerFailure, API rejected request
 
   // local status code
   static const int CONNECT_TIMEOUT = -1;
@@ -239,7 +252,8 @@ class ResponseCode {
 class ResponseMessage {
   static const String SUCCESS = AppConstants.success; // success with data
   static const String Deleted = AppConstants.success; // success with data
-  static const String NO_CONTENT = AppConstants.success; // success with no data (no content)
+  static const String NO_CONTENT = AppConstants
+      .success; // success with no data (no content)
   static const String BAD_REQUEST =
       AppConstants.badRequestError; // failure, API rejected request
   static const String UNAUTORISED =

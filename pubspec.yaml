@@ -31,7 +31,7 @@ dependencies:
   shimmer: ^3.0.0
   table_calendar: ^3.1.2
   location: ^8.0.1
-  intl: 0.20.2
+  intl: ^0.20.3
 #  image_picker: ^1.1.2
   cached_network_image: ^3.4.0
   smooth_page_indicator: ^2.0.1
@@ -40,7 +40,7 @@ dependencies:
 #  curved_labeled_navigation_bar: ^2.0.5
 #  flutter_spinkit: ^5.2.1
   marquee: ^2.3.0
-  animated_rating_stars: ^1.0.1
+#  animated_rating_stars: ^1.0.1
   flutter_staggered_animations: ^1.1.1
 #  flutter_map: ^8.1.1
 #  http: ^1.4.0
@@ -77,6 +77,7 @@ dependencies:
   flutter_webrtc: ^1.6.0
   vad: ^0.0.8
   scrollable_positioned_list: ^0.3.8
+  bloc_concurrency: ^0.3.0
 
 
 dev_dependencies:
