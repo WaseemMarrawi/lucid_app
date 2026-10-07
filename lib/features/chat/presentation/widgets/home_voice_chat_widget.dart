@@ -1,12 +1,17 @@
 import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:record/record.dart';
 import 'package:restaurants_menu/common/extensions/extensions.dart';
 import 'package:restaurants_menu/features/chat/domin/use_cases/send_voice_use_case.dart';
 import 'package:restaurants_menu/features/chat/presentation/bloc/chat_bloc.dart';
+import 'package:restaurants_menu/features/chat/presentation/widgets/voice_chat_widgets/barge_in_detector.dart';
 import 'package:restaurants_menu/features/chat/presentation/widgets/voice_chat_widgets/voice_ai_speaking_content.dart';
 import 'package:restaurants_menu/features/chat/presentation/widgets/voice_chat_widgets/voice_disable_content.dart';
 import 'package:restaurants_menu/features/chat/presentation/widgets/voice_chat_widgets/voice_failed_content.dart';
@@ -32,6 +37,8 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
   late final stt.SpeechToText _speech;
 
+  late final AudioRecorder _bargeInRecorder;
+
   late final AudioPlayer _audioPlayer;
 
   late final ChatBloc _chatBloc;
@@ -42,7 +49,9 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
   // SUBSCRIPTIONS
   // ===========================================================================
 
-  late final StreamSubscription<PlayerState> _audioSubscription;
+  StreamSubscription<PlayerState>? _audioSubscription;
+
+  StreamSubscription<Uint8List>? _bargeInAudioSubscription;
 
   // ===========================================================================
   // REACTIVE UI STATE
@@ -77,6 +86,16 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
   // ===========================================================================
 
   bool _aiAudioActuallyPlaying = false;
+
+  bool _aiInterruptedByUser = false;
+
+  bool _bargeInMonitorActive = false;
+
+  bool _bargeInMonitorStarting = false;
+
+  bool _bargeInTriggered = false;
+
+  final BargeInDetector _bargeInDetector = BargeInDetector();
 
   // ===========================================================================
   // SPEECH TEXT
@@ -162,6 +181,8 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
     _speech = stt.SpeechToText();
 
+    _bargeInRecorder = AudioRecorder();
+
     _audioPlayer = AudioPlayer();
 
     _chatBloc = getIt<ChatBloc>();
@@ -191,7 +212,7 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     // INITIALIZATION
     // -------------------------------------------------------------------------
 
-    _initializeAudio();
+    unawaited(_initializeAudio());
 
     unawaited(_initializeSpeech());
   }
@@ -221,7 +242,34 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
   // AUDIO INITIALIZE
   // ===========================================================================
 
-  void _initializeAudio() {
+  Future<void> _initializeAudio() async {
+    try {
+      final session = await AudioSession.instance;
+
+      await session.configure(
+        const AudioSessionConfiguration(
+          avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+          avAudioSessionMode: AVAudioSessionMode.voiceChat,
+          avAudioSessionCategoryOptions:
+              AVAudioSessionCategoryOptions.allowBluetooth |
+                  AVAudioSessionCategoryOptions.defaultToSpeaker |
+                  AVAudioSessionCategoryOptions.mixWithOthers,
+          androidAudioAttributes: AndroidAudioAttributes(
+            contentType: AndroidAudioContentType.speech,
+            usage: AndroidAudioUsage.voiceCommunication,
+          ),
+          androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+          androidWillPauseWhenDucked: false,
+        ),
+      );
+
+      await session.setActive(true);
+    } catch (_) {}
+
+    if (!mounted) {
+      return;
+    }
+
     _audioSubscription = _audioPlayer.playerStateStream.listen((playerState) {
       if (!mounted) {
         return;
@@ -270,6 +318,8 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     _isStartingSpeech = false;
 
     _restartScheduled = false;
+
+    _bargeInTriggered = false;
   }
 
   // ===========================================================================
@@ -324,6 +374,8 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     // -------------------------------------------------------------------------
 
     try {
+      await _stopBargeInMonitor();
+
       if (_speech.isListening) {
         await _speech.cancel();
       }
@@ -390,6 +442,12 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     _recordingAnimationController.value = 0;
 
     _aiAudioActuallyPlaying = false;
+
+    _aiInterruptedByUser = false;
+
+    _bargeInTriggered = false;
+
+    _bargeInDetector.reset();
   }
 
   // ===========================================================================
@@ -456,6 +514,8 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
       // MICROPHONE PERMISSION
       // -----------------------------------------------------------------------
 
+      await _stopBargeInMonitor();
+
       final permission = await Permission.microphone.request();
 
       if (!mounted || sessionId != _recordingSessionId) {
@@ -476,7 +536,9 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
       // WAIT FOR PREVIOUS SESSION
       // -----------------------------------------------------------------------
 
-      await _waitForSpeechToFinish();
+      if (_speech.isListening) {
+        await _waitForSpeechToFinish();
+      }
 
       if (!mounted || sessionId != _recordingSessionId) {
         return;
@@ -556,6 +618,125 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     } finally {
       _isStartingSpeech = false;
     }
+  }
+
+  // ===========================================================================
+  // START MONITORING FOR INTERRUPTION (DURING AI SPEAKING)
+  // ===========================================================================
+
+  Future<void> _startListeningForInterruption() async {
+    if (!_isAiBackgroundListeningAllowed) {
+      return;
+    }
+
+    await _startBargeInMonitor();
+  }
+
+  bool get _isAiBackgroundListeningAllowed {
+    return mounted &&
+        _voiceChatActive &&
+        !_aiInterruptedByUser &&
+        _chatBloc.state.voiceChatState == VoiceChatState.aiSpeaking;
+  }
+
+  Future<void> _startBargeInMonitor() async {
+    if (_bargeInMonitorActive ||
+        _bargeInMonitorStarting ||
+        _bargeInTriggered) {
+      return;
+    }
+
+    final sessionId = _recordingSessionId;
+    _bargeInMonitorStarting = true;
+
+    try {
+      final permission = await Permission.microphone.status;
+
+      if (!permission.isGranted ||
+          !mounted ||
+          sessionId != _recordingSessionId ||
+          !_isAiBackgroundListeningAllowed) {
+        return;
+      }
+
+      final stream = await _bargeInRecorder.startStream(
+        const RecordConfig(
+          encoder: AudioEncoder.pcm16bits,
+          sampleRate: 16000,
+          numChannels: 1,
+          autoGain: true,
+          echoCancel: true,
+          noiseSuppress: true,
+          streamBufferSize: 3200,
+          androidConfig: AndroidRecordConfig(
+            speakerphone: true,
+            audioSource: AndroidAudioSource.voiceCommunication,
+            audioManagerMode: AudioManagerMode.modeInCommunication,
+          ),
+          iosConfig: IosRecordConfig(
+            manageAudioSession: false,
+            categoryOptions: [
+              IosAudioCategoryOption.defaultToSpeaker,
+              IosAudioCategoryOption.allowBluetooth,
+              IosAudioCategoryOption.allowBluetoothA2DP,
+            ],
+          ),
+        ),
+      );
+
+      if (!mounted ||
+          sessionId != _recordingSessionId ||
+          !_isAiBackgroundListeningAllowed) {
+        await _bargeInRecorder.stop();
+        return;
+      }
+
+      _bargeInDetector.reset();
+      _bargeInMonitorActive = true;
+      _bargeInAudioSubscription = stream.listen(
+        (audio) => _onBargeInAudio(audio, sessionId),
+        onError: (_) {
+          unawaited(_stopBargeInMonitor());
+        },
+      );
+    } catch (_) {
+      _bargeInMonitorActive = false;
+    } finally {
+      _bargeInMonitorStarting = false;
+    }
+  }
+
+  void _onBargeInAudio(Uint8List audio, int sessionId) {
+    if (!mounted ||
+        sessionId != _recordingSessionId ||
+        !_isAiBackgroundListeningAllowed ||
+        _bargeInTriggered) {
+      return;
+    }
+
+    if (!_bargeInDetector.addPcm16(audio)) {
+      return;
+    }
+
+    _bargeInTriggered = true;
+    unawaited(_handleAiInterruption());
+  }
+
+  Future<void> _stopBargeInMonitor() async {
+    _bargeInDetector.reset();
+
+    await _bargeInAudioSubscription?.cancel();
+    _bargeInAudioSubscription = null;
+
+    if (!_bargeInMonitorActive) {
+      return;
+    }
+
+    _bargeInMonitorActive = false;
+
+    try {
+      await _bargeInRecorder.stop();
+    } catch (_) {}
   }
 
   // ===========================================================================
@@ -692,6 +873,40 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     } catch (_) {}
 
     _startSilenceTimer();
+  }
+
+  // ===========================================================================
+  // HANDLE AI INTERRUPTION
+  // ===========================================================================
+
+  Future<void> _handleAiInterruption() async {
+    if (!mounted || !_voiceChatActive) {
+      return;
+    }
+
+    // 1. Stop AI audio immediately. The stop Future is intentionally not
+    // awaited before SentListenEvent, because barge-in must feel instant even if
+    // the platform audio session takes a few frames to fully release.
+    _aiInterruptedByUser = true;
+
+    _aiAudioActuallyPlaying = false;
+    final stopPlayback = _audioPlayer.stop().catchError((_) {});
+    await _stopBargeInMonitor();
+
+    // 2. Switch Bloc state to listening
+    _chatBloc.add(SentListenEvent());
+
+    // 3. Start the foreground recognizer immediately after playback stops.
+    _isSendingVoice = false;
+    _recordingRequested = true;
+    _speechSessionActive = false;
+    _userHasSpoken = false;
+    _speechText = '';
+    _lastRecognizedText = '';
+    _speechTextBeforeCurrentSession = '';
+
+    await stopPlayback;
+    await _startRecording(force: true);
   }
 
   // ===========================================================================
@@ -846,6 +1061,10 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
       _aiAudioActuallyPlaying = false;
 
+      _aiInterruptedByUser = false;
+
+      _bargeInTriggered = false;
+
       _recordingRequested = false;
 
       _speechSessionActive = false;
@@ -861,6 +1080,8 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
       // -----------------------------------------------------------------------
 
       try {
+        await _stopBargeInMonitor();
+
         if (_speech.isListening) {
           await _speech.cancel();
         }
@@ -895,16 +1116,25 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
       }
 
       // -----------------------------------------------------------------------
-      // PLAY
+      // PLAY AI AUDIO & START LISTENING FOR INTERRUPTION
       // -----------------------------------------------------------------------
 
-      await _audioPlayer.play();
+      final session = await AudioSession.instance;
+      await session.setActive(true);
+
+      unawaited(_audioPlayer.play());
+
+      // Raw PCM monitoring avoids making the speech recognizer compete with
+      // AI playback for the platform audio session.
+      await _startListeningForInterruption();
     } catch (_) {
       if (!mounted) {
         return;
       }
 
       _aiAudioActuallyPlaying = false;
+
+      await _stopBargeInMonitor();
 
       _isSendingVoice = false;
 
@@ -931,6 +1161,10 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
     _aiAudioActuallyPlaying = false;
 
+    _aiInterruptedByUser = false;
+
+    _bargeInTriggered = false;
+
     _recordingRequested = false;
 
     _speechSessionActive = false;
@@ -946,6 +1180,8 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     // -------------------------------------------------------------------------
 
     try {
+      await _stopBargeInMonitor();
+
       await _audioPlayer.stop();
     } catch (_) {}
 
@@ -1007,6 +1243,10 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
     _aiAudioActuallyPlaying = false;
 
+    _aiInterruptedByUser = false;
+
+    _bargeInTriggered = false;
+
     _isSendingVoice = false;
 
     _recordingRequested = true;
@@ -1038,6 +1278,8 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     // -------------------------------------------------------------------------
 
     await _waitForSpeechToFinish();
+
+    await _stopBargeInMonitor();
 
     if (!mounted || !_voiceChatActive) {
       return;
@@ -1243,6 +1485,10 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
     _aiAudioActuallyPlaying = false;
 
+    _aiInterruptedByUser = false;
+
+    _bargeInTriggered = false;
+
     _isStartingSpeech = false;
 
     _cancelTimers();
@@ -1252,6 +1498,10 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     // -------------------------------------------------------------------------
 
     try {
+      unawaited(_bargeInRecorder.dispose());
+    } catch (_) {}
+
+    try {
       _speech.cancel();
     } catch (_) {}
 
@@ -1259,7 +1509,7 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     // AUDIO
     // -------------------------------------------------------------------------
 
-    _audioSubscription.cancel();
+    _audioSubscription?.cancel();
 
     _audioPlayer.dispose();
 
