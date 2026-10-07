@@ -62,8 +62,6 @@ class _HomeVideoVoiceChatWidgetState extends State<HomeVideoVoiceChatWidget>
     Assets.videos.talk4,
   ];
 
-  final math.Random _random = math.Random();
-
   /// The controller currently shown. Swapped only once the next one is ready.
   final ValueNotifier<VideoPlayerController?> _videoControllerNotifier =
       ValueNotifier<VideoPlayerController?>(null);
@@ -71,7 +69,10 @@ class _HomeVideoVoiceChatWidgetState extends State<HomeVideoVoiceChatWidget>
   /// Whether the clip on screen is a talk clip (true) or silent clip (false).
   bool? _videoIsTalk;
 
-  String? _currentVideoPath;
+  /// Index of the clip last played in each category (-1 = none yet).
+  int _currentListeningIndex = -1;
+
+  int _currentSpeakingIndex = -1;
 
   /// Incremented on every switch so stale async initializations are discarded.
   int _videoRequestId = 0;
@@ -1298,7 +1299,7 @@ class _HomeVideoVoiceChatWidgetState extends State<HomeVideoVoiceChatWidget>
 
     final wantTalk = voiceState == VoiceChatState.aiSpeaking;
 
-    // Listening -> loading -> failed all stay on the same silent clip.
+    // Listening -> loading -> failed keep playing the same silent sequence.
     if (_videoIsTalk == wantTalk && _videoControllerNotifier.value != null) {
       return;
     }
@@ -1306,31 +1307,30 @@ class _HomeVideoVoiceChatWidgetState extends State<HomeVideoVoiceChatWidget>
     await _switchVideo(talk: wantTalk);
   }
 
-  String _pickRandomVideo(bool talk) {
-    final pool = talk ? _talkVideos : _silentVideos;
-
-    // Avoid immediately repeating the clip that was just on screen.
-    final candidates = pool.length > 1
-        ? pool.where((path) => path != _currentVideoPath).toList()
-        : pool;
-
-    return candidates[_random.nextInt(candidates.length)];
-  }
+  List<String> _videoList(bool talk) => talk ? _talkVideos : _silentVideos;
 
   Future<void> _switchVideo({required bool talk}) async {
     final requestId = ++_videoRequestId;
-    final path = _pickRandomVideo(talk);
+
+    final list = _videoList(talk);
+    final currentIndex = talk ? _currentSpeakingIndex : _currentListeningIndex;
+
+    // Sequential: continue with the next clip of this category.
+    final index = (currentIndex + 1) % list.length;
+    final path = list[index];
 
     final controller = VideoPlayerController.asset(
       path,
-      // Never grab audio focus: the AI audio / recorder own the audio session.
+      // Never grab audio focus: the AI audio owns the audio session.
       videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
     );
 
     try {
       await controller.initialize();
       await controller.setVolume(0);
-      await controller.setLooping(true);
+
+      // A single clip loops; several clips play one after another.
+      await controller.setLooping(list.length == 1);
 
       // A newer request, or dispose, happened while we were initializing.
       if (!mounted || requestId != _videoRequestId) {
@@ -1346,12 +1346,42 @@ class _HomeVideoVoiceChatWidgetState extends State<HomeVideoVoiceChatWidget>
       return;
     }
 
+    // When the clip ends, move on to the next one in the same category.
+    if (list.length > 1) {
+      var finished = false;
+
+      controller.addListener(() {
+        final value = controller.value;
+
+        if (finished ||
+            !value.isInitialized ||
+            value.duration == Duration.zero ||
+            value.position < value.duration) {
+          return;
+        }
+
+        finished = true;
+
+        // Ignore clips that were already replaced.
+        if (_videoControllerNotifier.value != controller) {
+          return;
+        }
+
+        unawaited(_switchVideo(talk: talk));
+      });
+    }
+
     // Swap only once the new clip is ready so the avatar never flashes empty.
     final previous = _videoControllerNotifier.value;
 
     _videoControllerNotifier.value = controller;
     _videoIsTalk = talk;
-    _currentVideoPath = path;
+
+    if (talk) {
+      _currentSpeakingIndex = index;
+    } else {
+      _currentListeningIndex = index;
+    }
 
     // Dispose after the frame that stops referencing the old controller.
     if (previous != null) {
@@ -1368,7 +1398,6 @@ class _HomeVideoVoiceChatWidgetState extends State<HomeVideoVoiceChatWidget>
 
     _videoControllerNotifier.value = null;
     _videoIsTalk = null;
-    _currentVideoPath = null;
 
     if (previous != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
