@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,18 +15,20 @@ import 'package:restaurants_menu/features/chat/presentation/widgets/voice_chat_w
 import 'package:restaurants_menu/features/chat/presentation/widgets/voice_chat_widgets/voice_listening_content.dart';
 import 'package:restaurants_menu/features/chat/presentation/widgets/voice_chat_widgets/voice_loading_content.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:video_player/video_player.dart';
 
+import '../../../../common/design/src/theme/assets.gen.dart';
 import '../../../../common/extensions/src/color_extentions.dart';
 import '../../../../core/di/injection.dart';
 
-class HomeVoiceChatWidget extends StatefulWidget {
-  const HomeVoiceChatWidget({super.key});
+class HomeVideoVoiceChatWidget extends StatefulWidget {
+  const HomeVideoVoiceChatWidget({super.key});
 
   @override
-  State<HomeVoiceChatWidget> createState() => _HomeVoiceChatWidgetState();
+  State<HomeVideoVoiceChatWidget> createState() => _HomeVideoVoiceChatWidgetState();
 }
 
-class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
+class _HomeVideoVoiceChatWidgetState extends State<HomeVideoVoiceChatWidget>
     with SingleTickerProviderStateMixin {
   // ===========================================================================
   // CONTROLLERS
@@ -38,6 +41,40 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
   late final ChatBloc _chatBloc;
 
   late final AnimationController _recordingAnimationController;
+
+  // ===========================================================================
+  // AVATAR VIDEO
+  // ===========================================================================
+
+  /// Idle / listening avatar clips. Add new files here (and to assets/videos/).
+  static final List<String> _silentVideos = [
+    Assets.videos.silent1,
+    Assets.videos.silent2,
+    Assets.videos.silent3,
+    Assets.videos.silent4,
+  ];
+
+  /// Speaking avatar clips played while the AI audio is playing.
+  static final List<String> _talkVideos = [
+    Assets.videos.talk1,
+    Assets.videos.talk2,
+    Assets.videos.talk3,
+    Assets.videos.talk4,
+  ];
+
+  final math.Random _random = math.Random();
+
+  /// The controller currently shown. Swapped only once the next one is ready.
+  final ValueNotifier<VideoPlayerController?> _videoControllerNotifier =
+      ValueNotifier<VideoPlayerController?>(null);
+
+  /// Whether the clip on screen is a talk clip (true) or silent clip (false).
+  bool? _videoIsTalk;
+
+  String? _currentVideoPath;
+
+  /// Incremented on every switch so stale async initializations are discarded.
+  int _videoRequestId = 0;
 
   // ===========================================================================
   // SUBSCRIPTIONS
@@ -1189,37 +1226,52 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<ChatBloc, ChatState>(
-      bloc: _chatBloc,
-      listenWhen: (previous, current) {
-        return previous.voiceChatState != VoiceChatState.aiSpeaking &&
-            current.voiceChatState == VoiceChatState.aiSpeaking;
-      },
-      listener: (context, state) {
-        final answer = state.voiceData.data?.data?.answer;
-
+    return MultiBlocListener(
+      listeners: [
         // ---------------------------------------------------------------------
-        // NO ANSWER
+        // AVATAR VIDEO FOLLOWS THE VOICE CHAT STATE
         // ---------------------------------------------------------------------
+        BlocListener<ChatBloc, ChatState>(
+          bloc: _chatBloc,
+          listenWhen: (previous, current) =>
+              previous.voiceChatState != current.voiceChatState,
+          listener: (context, state) {
+            unawaited(_syncVideoWithState(state.voiceChatState));
+          },
+        ),
+        BlocListener<ChatBloc, ChatState>(
+          bloc: _chatBloc,
+          listenWhen: (previous, current) {
+            return previous.voiceChatState != VoiceChatState.aiSpeaking &&
+                current.voiceChatState == VoiceChatState.aiSpeaking;
+          },
+          listener: (context, state) {
+            final answer = state.voiceData.data?.data?.answer;
 
-        if (answer == null || answer.trim().isEmpty) {
-          _isSendingVoice = false;
+            // -----------------------------------------------------------------
+            // NO ANSWER
+            // -----------------------------------------------------------------
 
-          _recordingRequested = true;
+            if (answer == null || answer.trim().isEmpty) {
+              _isSendingVoice = false;
 
-          _chatBloc.add(SentListenEvent());
+              _recordingRequested = true;
 
-          unawaited(_startRecording(force: true));
+              _chatBloc.add(SentListenEvent());
 
-          return;
-        }
+              unawaited(_startRecording(force: true));
 
-        // ---------------------------------------------------------------------
-        // PLAY AI
-        // ---------------------------------------------------------------------
+              return;
+            }
 
-        unawaited(_playAiAudio(answer.trim()));
-      },
+            // -----------------------------------------------------------------
+            // PLAY AI
+            // -----------------------------------------------------------------
+
+            unawaited(_playAiAudio(answer.trim()));
+          },
+        ),
+      ],
       child: BlocBuilder<ChatBloc, ChatState>(
         bloc: _chatBloc,
         builder: (context, state) {
@@ -1230,11 +1282,111 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
   }
 
   // ===========================================================================
+  // AVATAR VIDEO
+  // ===========================================================================
+
+  Future<void> _syncVideoWithState(VoiceChatState voiceState) async {
+    if (!mounted) {
+      return;
+    }
+
+    if (voiceState == VoiceChatState.disable) {
+      await _releaseVideo();
+
+      return;
+    }
+
+    final wantTalk = voiceState == VoiceChatState.aiSpeaking;
+
+    // Listening -> loading -> failed all stay on the same silent clip.
+    if (_videoIsTalk == wantTalk && _videoControllerNotifier.value != null) {
+      return;
+    }
+
+    await _switchVideo(talk: wantTalk);
+  }
+
+  String _pickRandomVideo(bool talk) {
+    final pool = talk ? _talkVideos : _silentVideos;
+
+    // Avoid immediately repeating the clip that was just on screen.
+    final candidates = pool.length > 1
+        ? pool.where((path) => path != _currentVideoPath).toList()
+        : pool;
+
+    return candidates[_random.nextInt(candidates.length)];
+  }
+
+  Future<void> _switchVideo({required bool talk}) async {
+    final requestId = ++_videoRequestId;
+    final path = _pickRandomVideo(talk);
+
+    final controller = VideoPlayerController.asset(
+      path,
+      // Never grab audio focus: the AI audio / recorder own the audio session.
+      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+    );
+
+    try {
+      await controller.initialize();
+      await controller.setVolume(0);
+      await controller.setLooping(true);
+
+      // A newer request, or dispose, happened while we were initializing.
+      if (!mounted || requestId != _videoRequestId) {
+        await controller.dispose();
+
+        return;
+      }
+
+      await controller.play();
+    } catch (_) {
+      await controller.dispose();
+
+      return;
+    }
+
+    // Swap only once the new clip is ready so the avatar never flashes empty.
+    final previous = _videoControllerNotifier.value;
+
+    _videoControllerNotifier.value = controller;
+    _videoIsTalk = talk;
+    _currentVideoPath = path;
+
+    // Dispose after the frame that stops referencing the old controller.
+    if (previous != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(previous.dispose());
+      });
+    }
+  }
+
+  Future<void> _releaseVideo() async {
+    _videoRequestId++;
+
+    final previous = _videoControllerNotifier.value;
+
+    _videoControllerNotifier.value = null;
+    _videoIsTalk = null;
+    _currentVideoPath = null;
+
+    if (previous != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(previous.dispose());
+      });
+    }
+  }
+
+  // ===========================================================================
   // MAIN CONTAINER
   // ===========================================================================
 
   Widget _buildMainContainer(ChatState state) {
     final isDisable = state.voiceChatState == VoiceChatState.disable;
+
+    if (!isDisable) {
+      return _buildVideoCard(state);
+    }
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 280),
@@ -1298,6 +1450,106 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
           onClose: _closeVoiceChat,
         );
     }
+  }
+
+  // ===========================================================================
+  // VIDEO CARD (ACTIVE CHAT)
+  // ===========================================================================
+
+  Widget _buildVideoCard(ChatState state) {
+    // Sized from the screen so it scales in portrait and landscape.
+    final screen = MediaQuery.sizeOf(context);
+    final isLandscape = screen.width > screen.height;
+
+    final height = isLandscape ? screen.height * .45 : screen.height * .25;
+    final width = math.min(height * .75, screen.width * .4);
+
+    return SizedBox(
+      width: width,
+      height: height,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // -----------------------------------------------------------------
+            // AVATAR VIDEO
+            // -----------------------------------------------------------------
+            ValueListenableBuilder<VideoPlayerController?>(
+              valueListenable: _videoControllerNotifier,
+              builder: (context, controller, _) {
+                if (controller == null || !controller.value.isInitialized) {
+                  return const SizedBox.shrink();
+                }
+
+                return FittedBox(
+                  fit: BoxFit.cover,
+                  clipBehavior: Clip.hardEdge,
+                  child: SizedBox(
+                    width: controller.value.size.width,
+                    height: controller.value.size.height,
+                    child: VideoPlayer(controller),
+                  ),
+                );
+              },
+            ),
+
+            // -----------------------------------------------------------------
+            // STOP SPEAKING (ONLY WHILE THE AI IS SPEAKING)
+            // -----------------------------------------------------------------
+            if (state.voiceChatState == VoiceChatState.aiSpeaking)
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: GestureDetector(
+                    onTap: _stopAiAudio,
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.stop_rounded,
+                        color: Colors.white,
+                        size: 26,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+            // -----------------------------------------------------------------
+            // CLOSE BUTTON
+            // -----------------------------------------------------------------
+            PositionedDirectional(
+              top: 6,
+              end: 6,
+              child: GestureDetector(
+                onTap: _closeVoiceChat,
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.close,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   // ===========================================================================
@@ -1367,6 +1619,20 @@ class _HomeVoiceChatWidgetState extends State<HomeVoiceChatWidget>
     // -------------------------------------------------------------------------
 
     _recordingAnimationController.dispose();
+
+    // -------------------------------------------------------------------------
+    // VIDEO
+    // -------------------------------------------------------------------------
+
+    _videoRequestId++;
+
+    final videoController = _videoControllerNotifier.value;
+
+    _videoControllerNotifier.value = null;
+
+    _videoControllerNotifier.dispose();
+
+    unawaited(videoController?.dispose());
 
     // -------------------------------------------------------------------------
     // VALUE NOTIFIERS

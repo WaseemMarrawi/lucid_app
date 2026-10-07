@@ -37,6 +37,7 @@ class RestaurantModel {
   final bool? aiChatEnabled;
   final bool? aiOrderChatEnabled;
   final bool? aiAudioChatEnabled;
+  final bool? aiVideoChatEnabled;
 
   RestaurantModel({
     this.id,
@@ -71,7 +72,8 @@ class RestaurantModel {
     this.updatedAt,
     this.aiChatEnabled,
     this.aiOrderChatEnabled,
-    this.aiAudioChatEnabled
+    this.aiAudioChatEnabled,
+    this.aiVideoChatEnabled,
   });
 
   RestaurantModel copyWith({
@@ -108,6 +110,8 @@ class RestaurantModel {
      bool? aiChatEnabled,
      bool? aiOrderChatEnabled,
      bool? aiAudioChatEnabled,
+     bool? aiVideoChatEnabled
+
   }) => RestaurantModel(
     id: id ?? this.id,
     aiChatEnabled: aiChatEnabled ?? this.aiChatEnabled,
@@ -143,6 +147,7 @@ class RestaurantModel {
     media: media ?? this.media,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
+    aiVideoChatEnabled: aiVideoChatEnabled ?? this.aiVideoChatEnabled,
   );
 
   factory RestaurantModel.fromJson(Map<String, dynamic> json) =>
@@ -161,6 +166,7 @@ class RestaurantModel {
       aiChatEnabled: json["ai_chat_enabled"],
       aiOrderChatEnabled: json["ai_order_chat_enabled"],
       aiAudioChatEnabled: json["ai_audio_chat_enabled"],
+        aiVideoChatEnabled: json["ai_chat_video_enable"],
 
         description: json["description"],
         descriptionTranslations: json["description_translations"] == null
@@ -246,6 +252,7 @@ class RestaurantModel {
     "ai_chat_enabled": aiChatEnabled,
    "ai_order_chat_enabled":aiOrderChatEnabled,
    "ai_audio_chat_enabled":aiAudioChatEnabled,
+   "ai_chat_video_enable":aiVideoChatEnabled,
 
   };
 }

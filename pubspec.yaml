@@ -112,6 +112,8 @@ flutter:
   generate: true
   assets:
     - assets/images/png/
+    - assets/videos/
+    - assets/images/
     - assets/images/png/log_in/
     - assets/images/png/native_splash/
     - assets/images/png/welcome/

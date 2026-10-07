@@ -14,6 +14,7 @@ import 'package:restaurants_menu/router/app_router.dart';
 
 import '../../../../common/design/src/theme/theme/theme_collection.dart';
 import '../../../../common/extensions/src/context_extensions.dart';
+import '../../../chat/presentation/widgets/home_video_voice_chat_widget.dart';
 import '../../../chat/presentation/widgets/home_voice_chat_widget.dart';
 import '../widgets/home_widgets/home_product_grid_status_widget.dart';
 import '../widgets/super_category/super_category_status_widget.dart';
@@ -134,9 +135,13 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         ),
         floatingActionButton:
+        AppVariables.user?.restaurant?.aiVideoChatEnabled == true
+            ? const HomeVideoVoiceChatWidget()
+            :
+
         AppVariables.user?.restaurant?.aiAudioChatEnabled == true
-            ? HomeVoiceChatWidget()
-            : AppVariables.user?.restaurant?.aiChatEnabled == true
+            ? const HomeVoiceChatWidget()
+            : (AppVariables.user?.restaurant?.aiChatEnabled == true||AppVariables.user?.restaurant?.aiOrderChatEnabled == true)
             ? FloatingActionButton(
           onPressed: () {
             context.pushNamed(RouteName.message);

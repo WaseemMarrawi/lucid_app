@@ -37,6 +37,46 @@ class $AssetsTranslationsGen {
   List<String> get values => [ar, en, fa];
 }
 
+class $AssetsVideosGen {
+  const $AssetsVideosGen();
+
+  /// File path: assets/videos/silent1.mp4
+  String get silent1 => 'assets/videos/silent1.mp4';
+
+  /// File path: assets/videos/silent2.mp4
+  String get silent2 => 'assets/videos/silent2.mp4';
+
+  /// File path: assets/videos/silent3.mp4
+  String get silent3 => 'assets/videos/silent3.mp4';
+
+  /// File path: assets/videos/silent4.mp4
+  String get silent4 => 'assets/videos/silent4.mp4';
+
+  /// File path: assets/videos/talk1.mp4
+  String get talk1 => 'assets/videos/talk1.mp4';
+
+  /// File path: assets/videos/talk2.mp4
+  String get talk2 => 'assets/videos/talk2.mp4';
+
+  /// File path: assets/videos/talk3.mp4
+  String get talk3 => 'assets/videos/talk3.mp4';
+
+  /// File path: assets/videos/talk4.mp4
+  String get talk4 => 'assets/videos/talk4.mp4';
+
+  /// List of all assets
+  List<String> get values => [
+    silent1,
+    silent2,
+    silent3,
+    silent4,
+    talk1,
+    talk2,
+    talk3,
+    talk4,
+  ];
+}
+
 class $AssetsImagesPngGen {
   const $AssetsImagesPngGen();
 
@@ -507,6 +547,7 @@ class $AssetsImagesSvgWelcomeGen {
 abstract final class Assets {
   static const $AssetsImagesGen images = $AssetsImagesGen();
   static const $AssetsTranslationsGen translations = $AssetsTranslationsGen();
+  static const $AssetsVideosGen videos = $AssetsVideosGen();
 }
 
 class AssetGenImage {
